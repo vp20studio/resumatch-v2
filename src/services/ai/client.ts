@@ -4,7 +4,9 @@
  */
 
 import OpenAI from 'openai';
-import { OPENAI_API_KEY } from '../../config/env';
+
+// Load API key from environment variable
+const API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
 
 // Types
 export interface OpenAICallOptions {
@@ -53,11 +55,14 @@ export function initializeOpenAI(apiKey: string): void {
 }
 
 /**
- * Ensure the client is initialized (auto-initialize with embedded key)
+ * Ensure the client is initialized
  */
 function ensureInitialized(): void {
   if (!openaiClient) {
-    initializeOpenAI(OPENAI_API_KEY);
+    if (!API_KEY) {
+      throw new AIError('api_error', 'OpenAI API key not configured.');
+    }
+    initializeOpenAI(API_KEY);
   }
 }
 
