@@ -1,342 +1,359 @@
 # ResuMatch v2
 
-## CRITICAL: Read This First
+## Product Vision
 
-This is an EXISTING codebase with working services, stores, and components.
-DO NOT recreate things that already exist. EXTEND the app, don't replace it.
+**"Land your next job in 30-60 days"**
 
-## Project Overview
+ResuMatch is a gamified job search accountability system that makes applying so fast and easy, users actually do it. We remove every excuse by combining:
+- 8-second tailored resumes
+- AI-detection-proof cover letters
+- Application tracking with streaks and goals
+- Beautiful, ATS-friendly PDF exports
 
-Mobile app that generates tailored resumes and cover letters using a 2-pass AI algorithm.
+---
 
-**What's DONE:**
-- Tailoring algorithm (src/services/tailoring/) - 2-pass, 3 LLM calls, 5-8 seconds
-- AI client (src/services/ai/client.ts) - OpenAI gpt-4o with retry/timeout
-- State management (src/stores/) - Zustand with persistence
-- Theme system (src/theme/) - Colors, spacing, typography
-- Base UI components (src/components/ui/) - Button, Card, Input, Text, etc.
-- Navigation structure (app/) - Expo Router with tabs
+## CRITICAL: Use Existing Code
 
-**What NEEDS building:**
-- Onboarding flow (API key input, resume paste)
-- Generate screen content (JD input → results)
-- History screen (past generations list)
-- Profile screen (view/edit resume, settings)
-- Results viewing (modal or screen for tailored output)
-- PDF upload support
-- Polish and animations
+This is a mature codebase. DO NOT recreate things that exist.
+EXTEND the app, don't replace it.
+
+---
 
 ## Tech Stack
 
 - React Native 0.81.5 / Expo SDK 54
 - TypeScript 5.9
 - Expo Router (file-based routing)
-- Zustand (state management)
-- OpenAI API (gpt-4o)
+- Zustand (state management with persistence)
+- OpenAI API (gpt-4o) - key embedded in config
+- ZeroGPT API (AI detection)
 
 ---
 
-## EXISTING CODE - USE THESE, DON'T RECREATE
+## Project Structure
 
-### Stores (src/stores/)
+```
+src/
+├── config/
+│   └── env.ts                    # API keys (gitignored)
+├── services/
+│   ├── ai/
+│   │   └── client.ts             # OpenAI wrapper with retry/timeout
+│   ├── tailoring/
+│   │   ├── index.ts              # Main exports
+│   │   ├── orchestrator.ts       # 2-pass tailoring flow
+│   │   ├── parser.ts             # Resume parsing (no LLM)
+│   │   ├── jdAnalyzer.ts         # JD extraction (1 LLM call)
+│   │   ├── matcher.ts            # Skill matching (no LLM)
+│   │   ├── formatter.ts          # Resume formatting (1 LLM call)
+│   │   ├── coverLetter.ts        # Cover letter gen (1 LLM call)
+│   │   └── types.ts              # All type definitions
+│   ├── aiDetection.ts            # ZeroGPT integration
+│   ├── pdfService.ts             # PDF import (extract text)
+│   └── exportService.ts          # PDF export (resume/cover letter)
+├── stores/
+│   ├── index.ts                  # All exports
+│   ├── authStore.ts              # Onboarding state (no API key)
+│   ├── resumeStore.ts            # User's resume data
+│   ├── generationStore.ts        # Current generation state
+│   ├── historyStore.ts           # Past applications with status
+│   └── goalsStore.ts             # Weekly targets, streaks
+├── components/ui/
+│   ├── index.ts                  # All exports
+│   ├── Button.tsx
+│   ├── Card.tsx
+│   ├── Input.tsx
+│   ├── Text.tsx
+│   ├── Toast.tsx
+│   ├── LoadingOverlay.tsx
+│   └── ConfirmDialog.tsx
+├── templates/
+│   ├── resumeTemplate.ts         # HTML template for PDF
+│   └── coverLetterTemplate.ts    # HTML template for PDF
+├── utils/
+│   ├── formatDate.ts             # Relative dates
+│   └── cleanJobDescription.ts    # Clean pasted JDs
+├── theme/
+│   ├── colors.ts
+│   ├── spacing.ts
+│   └── typography.ts
+└── __tests__/
+    ├── fixtures/
+    │   ├── testResumes.ts
+    │   └── testJobDescriptions.ts
+    ├── algorithmTest.ts
+    └── runTests.ts
 
+app/
+├── _layout.tsx                   # Root layout
+├── index.tsx                     # Entry router
+├── (onboarding)/
+│   ├── _layout.tsx
+│   ├── welcome.tsx               # Hero + Get Started
+│   ├── upload.tsx                # Resume paste/PDF upload
+│   ├── goals.tsx                 # Set timeline + weekly target
+│   └── complete.tsx              # Success, go to app
+├── (tabs)/
+│   ├── _layout.tsx               # Tab navigator
+│   ├── generate.tsx              # Main generation screen
+│   ├── tracker.tsx               # Application pipeline
+│   └── profile.tsx               # Settings + resume
+└── (modals)/
+    ├── _layout.tsx
+    ├── result.tsx                # Match score, resume, cover letter
+    └── edit-resume.tsx           # Edit resume text
+```
+
+---
+
+## Stores Reference
+
+### authStore
 ```typescript
-// Resume data - PERSISTED
-import { useResumeStore } from '../stores';
-const { rawText, parsedData, setRawText, setParsedData } = useResumeStore();
+import { useAuthStore } from '../stores';
 
-// Generation state - EPHEMERAL  
-import { useGenerationStore } from '../stores';
 const { 
-  jobDescription, 
-  status,      // 'idle' | 'generating' | 'success' | 'error'
-  progress,    // { step, progress, message }
-  result,      // TailoringResult
+  hasCompletedOnboarding,
+  completeOnboarding,
+  resetOnboarding 
+} = useAuthStore();
+```
+
+### resumeStore
+```typescript
+import { useResumeStore } from '../stores';
+
+const {
+  rawText,              // Original resume text
+  parsedData,           // Structured ResumeData
+  setRawText,
+  setParsedData,
+  clearResume
+} = useResumeStore();
+```
+
+### generationStore
+```typescript
+import { useGenerationStore } from '../stores';
+
+const {
+  jobDescription,
+  status,               // 'idle' | 'generating' | 'success' | 'error'
+  progress,             // { step, progress: 0-100, message }
+  result,               // TailoringResult
+  aiDetectionScore,     // ZeroGPT score
   setJobDescription,
   startGeneration,
   setProgress,
   setResult,
   setError,
-  reset 
+  reset
 } = useGenerationStore();
-
-// Auth state
-import { useAuthStore } from '../stores';
-const { isLoading, apiKey, setApiKey } = useAuthStore();
 ```
 
-### Tailoring Service (src/services/tailoring/)
+### historyStore
+```typescript
+import { useHistoryStore } from '../stores';
 
+const {
+  items,                // HistoryItem[]
+  addItem,              // Add new application
+  updateStatus,         // Change status (applied/replied/interviewing/offer/rejected)
+  removeItem,
+  clearHistory
+} = useHistoryStore();
+
+// HistoryItem shape:
+{
+  id: string;
+  jobTitle: string;
+  company: string;
+  matchScore: number;
+  aiDetectionScore: number;
+  result: TailoringResult;
+  status: 'applied' | 'replied' | 'interviewing' | 'offer' | 'rejected';
+  appliedDate: string;
+  createdAt: string;
+}
+```
+
+### goalsStore
+```typescript
+import { useGoalsStore } from '../stores';
+
+const {
+  targetDays,           // 30, 60, or 90
+  weeklyTarget,         // Number of applications
+  startDate,
+  currentStreak,
+  lastApplicationDate,
+  weeklyProgress,       // Computed: applications this week
+  daysRemaining,        // Computed: days until goal
+  setGoals,
+  incrementStreak,
+  resetStreak
+} = useGoalsStore();
+```
+
+---
+
+## Services Reference
+
+### Tailoring (ALREADY COMPLETE - USE IT)
 ```typescript
 import { tailorResume, tailorResumeQuick } from '../services/tailoring';
 
-// Full mode (3 LLM calls, ~8 seconds)
 const result = await tailorResume(resumeText, jobDescription, (progress) => {
-  // progress: { step, progress: 0-100, message }
   setProgress(progress);
 });
 
-// Quick mode (1 LLM call, ~3 seconds)  
-const result = await tailorResumeQuick(resumeText, jobDescription, onProgress);
-
 // Result shape:
-// {
-//   resume: TailoredResume,
-//   coverLetter: string,
-//   matchScore: number,
-//   matchedItems: MatchResult[],
-//   missingItems: MatchResult[],
-//   processingTime: number
-// }
+{
+  resume: TailoredResume;
+  coverLetter: string;
+  matchScore: number;
+  matchedItems: MatchResult[];
+  missingItems: MatchResult[];
+  processingTime: number;
+}
 ```
 
-### AI Client (src/services/ai/client.ts)
-
+### AI Detection
 ```typescript
-import { initializeOpenAI, isOpenAIInitialized } from '../services/ai/client';
+import { checkAIScore } from '../services/aiDetection';
 
-// Must be called before using tailoring service
-initializeOpenAI(apiKey);
+const { score, isHuman } = await checkAIScore(coverLetterText);
+// score: 0-100 (lower = more human)
+// isHuman: true if score < 40
 ```
 
-### Theme (src/theme/)
+### PDF Export
+```typescript
+import { generateResumePDF, generateCoverLetterPDF } from '../services/exportService';
+
+const resumeUri = await generateResumePDF(result.resume, userName);
+const coverLetterUri = await generateCoverLetterPDF(result.coverLetter, company);
+
+// Then share:
+import * as Sharing from 'expo-sharing';
+await Sharing.shareAsync(resumeUri);
+```
+
+### PDF Import
+```typescript
+import { pickAndExtractPDF } from '../services/pdfService';
+
+const resumeText = await pickAndExtractPDF();
+if (resumeText) {
+  setRawText(resumeText);
+}
+```
+
+---
+
+## Theme Reference
 
 ```typescript
 import { colors, spacing, typography } from '../theme';
 
-// Colors - USE THESE, don't hardcode
-colors.primary[600]      // #4F46E5 - main brand color
-colors.accent[500]       // #14B8A6 - teal for success
-colors.text.primary      // #111827
-colors.text.secondary    // #4B5563
+// Colors
+colors.primary[600]       // #4F46E5 - brand
+colors.accent[500]        // #14B8A6 - success/progress
+colors.text.primary       // #111827
+colors.text.secondary     // #4B5563
 colors.background.primary // #FFFFFF
-colors.border.light      // #E5E7EB
-colors.success.main      // #10B981
-colors.error.main        // #EF4444
+colors.success.main       // #10B981
+colors.warning.main       // #F59E0B
+colors.error.main         // #EF4444
 
 // Spacing
-spacing[1] = 4
 spacing[2] = 8
-spacing[3] = 12
 spacing[4] = 16
 spacing[6] = 24
 spacing[8] = 32
-```
 
-### UI Components (src/components/ui/)
-
-```typescript
-import { Button, Card, Input, Text } from '../components/ui';
-
-// Text variants
-<Text variant="h1">Large heading</Text>
-<Text variant="h2">Section heading</Text>
-<Text variant="body">Body text</Text>
-<Text variant="caption">Small text</Text>
-
-// Button
-<Button title="Generate" onPress={handlePress} />
-<Button title="Cancel" variant="secondary" />
-<Button title="Delete" variant="destructive" />
-
-// Input
-<Input 
-  label="Job Description"
-  value={value}
-  onChangeText={setValue}
-  placeholder="Paste job description..."
-  multiline
-  numberOfLines={6}
-/>
-
-// Card
-<Card>
-  <Text>Content</Text>
-</Card>
+// Use for match score colors:
+// 80%+ = colors.success.main (green)
+// 60-79% = colors.warning.main (yellow)
+// <60% = colors.error.main (red)
 ```
 
 ---
 
-## Navigation Structure
+## User Flows
 
+### Onboarding (First Launch)
 ```
-app/
-├── _layout.tsx              # Root - Stack with (onboarding), (tabs), (modals)
-├── index.tsx                # Redirect based on onboarding/auth state
-├── (onboarding)/
-│   ├── _layout.tsx          # Onboarding stack
-│   ├── welcome.tsx          # Welcome screen
-│   ├── api-key.tsx          # API key input
-│   └── resume-upload.tsx    # Paste resume
-├── (tabs)/
-│   ├── _layout.tsx          # Tab navigator (Generate, History, Profile)
-│   ├── generate.tsx         # Main generation screen
-│   ├── history.tsx          # Past generations
-│   └── profile.tsx          # User profile & settings
-└── (modals)/
-    ├── _layout.tsx          # Modal stack
-    └── result.tsx           # View generation result
-```
-
----
-
-## Screen Specifications
-
-### Onboarding: Welcome
-- Hero section with app value prop
-- "Get Started" button → api-key screen
-- Skip option if returning user (check AsyncStorage)
-
-### Onboarding: API Key
-- Explain why OpenAI key is needed
-- Secure input field for API key
-- "Test Connection" button to verify
-- Save to secure storage (expo-secure-store)
-- Link to OpenAI to get key
-
-### Onboarding: Resume Upload
-- Two options: Paste text OR Upload PDF
-- Large text area for paste
-- "Paste from Clipboard" button
-- PDF picker (expo-document-picker)
-- Preview of parsed content
-- "Continue" saves to resumeStore
-
-### Tab: Generate
-- Show current resume summary (from resumeStore)
-- "Edit Resume" link
-- Large text input for job description
-- "Paste from Clipboard" button
-- "Generate" button (disabled if no JD or no resume)
-- Progress indicator during generation
-- Auto-navigate to result on success
-
-### Tab: History
-- List of past generations (need to add history store)
-- Each item shows: company, job title, match score, date
-- Tap to view full result
-- Swipe to delete
-- Empty state if no history
-
-### Tab: Profile
-- Resume summary card
-- "Update Resume" button
-- "API Key" setting (masked, with edit)
-- "Clear History" option
-- "Reset App" option (clear all data)
-- App version
-
-### Modal: Result
-- Match score prominently displayed (use ScoreGauge component)
-- Segmented control: Resume | Cover Letter
-- Scrollable content area
-- "Copy" button for each section
-- "Share" button
-- Matched/Missing skills summary (collapsible)
-
----
-
-## Implementation Patterns
-
-### Screen Template
-```typescript
-import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button } from '../../src/components/ui';
-import { colors, spacing } from '../../src/theme';
-import { useGenerationStore, useResumeStore } from '../../src/stores';
-
-export default function ScreenName() {
-  // Use existing stores
-  const { rawText } = useResumeStore();
-  const { status, result } = useGenerationStore();
-
-  return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.container}>
-        {/* Content */}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  container: {
-    flex: 1,
-    padding: spacing[4],
-  },
-});
+welcome.tsx → upload.tsx → goals.tsx → complete.tsx → (tabs)/generate.tsx
 ```
 
 ### Generation Flow
-```typescript
-import { tailorResume } from '../../src/services/tailoring';
-import { useGenerationStore, useResumeStore } from '../../src/stores';
-import { initializeOpenAI } from '../../src/services/ai/client';
-
-const handleGenerate = async () => {
-  const { rawText } = useResumeStore.getState();
-  const { jobDescription, startGeneration, setProgress, setResult, setError } = 
-    useGenerationStore.getState();
-
-  startGeneration();
-
-  try {
-    const result = await tailorResume(rawText, jobDescription, setProgress);
-    setResult(result);
-    // Navigate to result modal
-    router.push('/(modals)/result');
-  } catch (error) {
-    setError(error.message);
-  }
-};
 ```
+1. User pastes JD on generate.tsx
+2. Tap "Generate" → startGeneration()
+3. Call tailorResume() with progress callback
+4. Check AI score with checkAIScore()
+5. If AI score > 50, regenerate cover letter
+6. Navigate to result.tsx modal
+7. User views score, resume, cover letter
+8. User exports PDF and/or copies text
+9. Prompt "Mark as Applied?"
+10. If yes → addItem() to history, update streak
+11. Return to generate.tsx with updated stats
+```
+
+### Application Tracking
+```
+tracker.tsx shows pipeline:
+Applied (23) → Replied (5) → Interviewing (2) → Offers (0)
+
+Tap any item → view original result
+Swipe or tap to change status
+```
+
+---
+
+## Quality Thresholds
+
+| Metric | Target | Action if Failed |
+|--------|--------|------------------|
+| Match score (relevant job) | 50-95% | Check matcher.ts |
+| Match score (irrelevant job) | 20-50% | Check scoring weights |
+| AI detection score | < 40% | Regenerate cover letter |
+| Cover letter length | 150-350 words | Adjust prompt |
+| Skills extracted | 5+ | Check parser.ts |
+| Requirements extracted | 5+ | Check jdAnalyzer.ts |
 
 ---
 
 ## DO NOT
 
 - ❌ Create new state management - USE existing Zustand stores
-- ❌ Create new types for resume/tailoring - IMPORT from services/tailoring/types
-- ❌ Hardcode colors - USE colors from src/theme/colors
-- ❌ Create new Button/Input/Text - USE src/components/ui
-- ❌ Reimplement tailoring algorithm - CALL tailorResume()
-- ❌ Create custom navigation - USE Expo Router file-based routing
-- ❌ Store API key in AsyncStorage - USE expo-secure-store
+- ❌ Recreate types - IMPORT from services/tailoring/types
+- ❌ Hardcode colors - USE theme tokens
+- ❌ Recreate components - USE src/components/ui
+- ❌ Reimplement tailoring - CALL tailorResume()
+- ❌ Ask user for API key - IT'S EMBEDDED
+- ❌ Store sensitive data in AsyncStorage - USE expo-secure-store
 
 ## DO
 
 - ✅ Import from existing modules
-- ✅ Follow the screen template pattern above
-- ✅ Use StyleSheet.create() for styles
-- ✅ Use the colors and spacing tokens
+- ✅ Use the theme colors and spacing
 - ✅ Handle loading/error/empty states
-- ✅ Add proper TypeScript types
-- ✅ Use SafeAreaView for screen containers
+- ✅ Update streak after applications
+- ✅ Check AI detection on every cover letter
+- ✅ Show progress during generation
+- ✅ Make it feel gamified and motivating
 
 ---
 
 ## Commands
 
 ```bash
-npm start          # Start Expo dev server
-npm run ios        # iOS simulator
-npm run android    # Android emulator  
-npm run web        # Web browser
-npx tsc --noEmit   # Type check
-```
-
-## Dependencies to Add
-
-```bash
-# If not already installed
-npx expo install expo-secure-store
-npx expo install expo-document-picker
-npx expo install expo-clipboard
-npx expo install react-native-safe-area-context
+npm start              # Start Expo dev server
+npx expo start --ios   # iOS simulator
+npx expo start --web   # Web browser
+npx tsc --noEmit       # Type check
+npm test               # Run algorithm tests
 ```

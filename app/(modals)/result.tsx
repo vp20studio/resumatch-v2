@@ -59,6 +59,27 @@ export default function ResultScreen() {
     return 'Needs Improvement';
   };
 
+  // AI Detection helpers - FIXED LOGIC
+  const getAIDetectionStatus = (aiScore: number) => {
+    // aiScore is the percentage of AI-detected content (0-100)
+    // Lower is better (more human)
+    if (aiScore < 30) return { label: 'Human-like', color: colors.success.main, passing: true };
+    if (aiScore < 50) return { label: 'Mostly Human', color: colors.success.main, passing: true };
+    if (aiScore < 70) return { label: 'Mixed', color: colors.warning.main, passing: false };
+    return { label: 'AI Detected', color: colors.error.main, passing: false };
+  };
+
+  const getAIScoreDisplay = (aiScore: number) => {
+    // Show as "Human Score" = 100 - AI Score
+    // But clarify what it means
+    const humanScore = 100 - aiScore;
+    return {
+      value: humanScore,
+      label: humanScore >= 50 ? 'Human Score' : 'AI Content',
+      displayValue: humanScore >= 50 ? `${humanScore}%` : `${aiScore}%`,
+    };
+  };
+
   const showToastMessage = (message: string) => {
     setToastMessage(message);
     setShowToast(true);
@@ -177,6 +198,11 @@ export default function ResultScreen() {
     router.replace('/(tabs)/generate');
   };
 
+  // Get AI detection display info
+  const aiScore = result.aiDetection?.score ?? 0;
+  const aiStatus = getAIDetectionStatus(aiScore);
+  const aiDisplay = getAIScoreDisplay(aiScore);
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Toast notification */}
@@ -216,9 +242,9 @@ export default function ResultScreen() {
           currentHistoryItem.status === 'applied' || currentHistoryItem.status === 'interviewing' || currentHistoryItem.status === 'offer' ? (
             <View style={styles.appliedBadge}>
               <Text variant="caption" style={styles.appliedBadgeText}>
-                {currentHistoryItem.status === 'applied' && 'Applied'}
-                {currentHistoryItem.status === 'interviewing' && 'Interviewing'}
-                {currentHistoryItem.status === 'offer' && 'Offer Received!'}
+                {currentHistoryItem.status === 'applied' && '✓ Applied'}
+                {currentHistoryItem.status === 'interviewing' && '🎯 Interviewing'}
+                {currentHistoryItem.status === 'offer' && '🎉 Offer Received!'}
               </Text>
             </View>
           ) : (
@@ -263,32 +289,30 @@ export default function ResultScreen() {
           </Text>
         </Card>
 
-        {/* Match summary (collapsible in future) */}
+        {/* Match summary (for resume tab) */}
         {activeTab === 'resume' && (
           <Card variant="filled" padding={4}>
             <Text variant="label" style={styles.summaryTitle}>Match Summary</Text>
             <View style={styles.summaryRow}>
-              <Text variant="body" color={colors.success.main}>
-                {result.matchedItems.length} matched
+              <Text variant="body" style={{ color: colors.success.main }}>
+                ✓ {result.matchedItems.length} matched
               </Text>
               <Text variant="body" color="tertiary">•</Text>
-              <Text variant="body" color={colors.error.main}>
-                {result.missingItems.length} gaps
+              <Text variant="body" style={{ color: colors.error.main }}>
+                ✗ {result.missingItems.length} gaps
               </Text>
             </View>
           </Card>
         )}
 
-        {/* AI Detection Score for Cover Letter */}
+        {/* AI Detection Score for Cover Letter - FIXED */}
         {activeTab === 'coverLetter' && result.aiDetection && (
           <Card
             variant="filled"
             padding={4}
             style={[
               styles.aiDetectionCard,
-              result.aiDetection.isHumanPassing
-                ? styles.aiDetectionPassing
-                : styles.aiDetectionWarning,
+              aiStatus.passing ? styles.aiDetectionPassing : styles.aiDetectionWarning,
             ]}
           >
             <View style={styles.aiDetectionHeader}>
@@ -298,42 +322,38 @@ export default function ResultScreen() {
               <View
                 style={[
                   styles.aiDetectionBadge,
-                  result.aiDetection.isHumanPassing
-                    ? styles.aiDetectionBadgePassing
-                    : styles.aiDetectionBadgeWarning,
+                  { backgroundColor: aiStatus.color + '20' },
                 ]}
               >
                 <Text
                   variant="caption"
-                  style={[
-                    styles.aiDetectionBadgeText,
-                    result.aiDetection.isHumanPassing
-                      ? styles.aiDetectionBadgeTextPassing
-                      : styles.aiDetectionBadgeTextWarning,
-                  ]}
+                  style={[styles.aiDetectionBadgeText, { color: aiStatus.color }]}
                 >
-                  {result.aiDetection.isHumanPassing ? 'Human-like' : 'AI Detected'}
+                  {aiStatus.label}
                 </Text>
               </View>
             </View>
+            
             <View style={styles.aiDetectionScore}>
-              <Text
-                variant="h2"
-                style={{
-                  color: result.aiDetection.isHumanPassing
-                    ? colors.success.main
-                    : colors.warning.main,
-                }}
-              >
-                {100 - result.aiDetection.score}%
+              <Text variant="h2" style={{ color: aiStatus.color }}>
+                {100 - aiScore}%
               </Text>
               <Text variant="caption" color="secondary">
                 Human Score
               </Text>
             </View>
+            
+            {/* Clearer explanation */}
             <Text variant="bodySmall" color="secondary" align="center">
               {result.aiDetection.feedback}
             </Text>
+            
+            {/* Help text if failing */}
+            {!aiStatus.passing && (
+              <Text variant="caption" color="tertiary" align="center" style={styles.helpText}>
+                Tip: Make small personal edits to improve the score
+              </Text>
+            )}
           </Card>
         )}
       </ScrollView>
@@ -523,24 +543,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[1],
     borderRadius: borderRadius.full,
   },
-  aiDetectionBadgePassing: {
-    backgroundColor: colors.success.main + '20',
-  },
-  aiDetectionBadgeWarning: {
-    backgroundColor: colors.warning.main + '20',
-  },
   aiDetectionBadgeText: {
     fontWeight: '600',
     fontSize: 11,
   },
-  aiDetectionBadgeTextPassing: {
-    color: colors.success.main,
-  },
-  aiDetectionBadgeTextWarning: {
-    color: colors.warning.main,
-  },
   aiDetectionScore: {
     alignItems: 'center',
     gap: spacing[1],
+  },
+  helpText: {
+    marginTop: spacing[1],
+    fontStyle: 'italic',
   },
 });

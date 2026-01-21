@@ -39,7 +39,7 @@ export function generateCoverLetterHTML(
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
 
-  // Try to detect and remove salutation/signature from body if present
+  // Parse salutation, body, closing, signature from the text
   const { salutation, body, closing, signature } = parseCoverLetter(paragraphs, opts);
 
   return `
@@ -58,10 +58,6 @@ export function generateCoverLetterHTML(
     ${generateHeader(opts)}
 
     <div class="letter-content">
-      ${opts.date ? `<p class="date">${escapeHtml(opts.date)}</p>` : ''}
-
-      ${generateRecipientBlock(opts)}
-
       <p class="salutation">${escapeHtml(salutation)}</p>
 
       <div class="body">
@@ -97,28 +93,10 @@ function generateHeader(opts: CoverLetterTemplateOptions): string {
   return parts.length > 0 ? `<header class="header">${parts.join('')}</header>` : '';
 }
 
-function generateRecipientBlock(opts: CoverLetterTemplateOptions): string {
-  const parts: string[] = [];
-
-  if (opts.recipientName) {
-    parts.push(escapeHtml(opts.recipientName));
-  } else {
-    parts.push('Hiring Manager');
-  }
-
-  if (opts.companyName) {
-    parts.push(escapeHtml(opts.companyName));
-  }
-
-  if (opts.jobTitle) {
-    parts.push(`Re: ${escapeHtml(opts.jobTitle)}`);
-  }
-
-  return parts.length > 0
-    ? `<div class="recipient">${parts.map((p) => `<p>${p}</p>`).join('')}</div>`
-    : '';
-}
-
+/**
+ * Parse cover letter text into structured parts
+ * Handles both formal ("Dear Hiring Manager,") and casual ("Hi,", "Hello,") greetings
+ */
 function parseCoverLetter(
   paragraphs: string[],
   opts: CoverLetterTemplateOptions
@@ -128,65 +106,133 @@ function parseCoverLetter(
   closing: string;
   signature: string;
 } {
-  let salutation = 'Dear Hiring Manager,';
+  let salutation = 'Hi,';
   let body = [...paragraphs];
-  let closing = 'Sincerely,';
+  let closing = 'Best,';
   let signature = opts.applicantName || '[Your Name]';
 
-  // Check if first paragraph is a salutation
-  if (body.length > 0 && body[0].toLowerCase().startsWith('dear')) {
-    salutation = body.shift()!;
+  // Greeting patterns to detect (both formal and casual)
+  const greetingPatterns = [
+    /^dear\s/i,
+    /^hi,?\s*$/i,
+    /^hi\s/i,
+    /^hello,?\s*$/i,
+    /^hello\s/i,
+    /^hey,?\s*$/i,
+    /^hey\s/i,
+    /^good\s+(morning|afternoon|evening)/i,
+    /^to\s+whom/i,
+  ];
+
+  // Check if first paragraph is a salutation/greeting
+  if (body.length > 0) {
+    const firstPara = body[0].trim();
+    const firstLine = firstPara.split('\n')[0].trim();
+    
+    const isGreeting = greetingPatterns.some(p => p.test(firstLine));
+    
+    if (isGreeting) {
+      // If the greeting is just "Hi," or "Hello," on its own line, use it
+      if (/^(hi|hello|hey|dear\s+hiring\s+manager),?\s*$/i.test(firstLine)) {
+        salutation = firstLine.endsWith(',') ? firstLine : firstLine + ',';
+        
+        // Check if there's more content after the greeting in the same paragraph
+        const restOfPara = firstPara.split('\n').slice(1).join('\n').trim();
+        if (restOfPara) {
+          body[0] = restOfPara;
+        } else {
+          body.shift();
+        }
+      } else if (firstPara.includes('\n')) {
+        // Greeting is part of first line, body continues
+        const lines = firstPara.split('\n');
+        salutation = lines[0].trim();
+        if (!salutation.endsWith(',')) salutation += ',';
+        body[0] = lines.slice(1).join('\n').trim();
+        if (!body[0]) body.shift();
+      } else {
+        // Whole first paragraph is just the greeting
+        salutation = body.shift()!;
+        if (!salutation.endsWith(',')) salutation += ',';
+      }
+    }
   }
 
-  // Check if last paragraph is a signature (single short line)
+  // Closing patterns
+  const closingPatterns = [
+    /^sincerely,?$/i,
+    /^best,?$/i,
+    /^regards,?$/i,
+    /^best\s+regards,?$/i,
+    /^thank\s+you,?$/i,
+    /^thanks,?$/i,
+    /^warm\s+regards,?$/i,
+    /^cheers,?$/i,
+    /^take\s+care,?$/i,
+  ];
+
+  // Check if last paragraph is a signature block
   if (body.length > 0) {
     const lastPara = body[body.length - 1];
-    const lastLines = lastPara.split('\n').filter((l) => l.trim());
+    const lastLines = lastPara.split('\n').map(l => l.trim()).filter(l => l);
 
-    if (lastLines.length <= 2 && lastPara.length < 100) {
+    // If it's a short block (likely signature)
+    if (lastPara.length < 150 && lastLines.length <= 3) {
       const potentialSignature = body.pop()!;
+      const lines = potentialSignature.split('\n').map(l => l.trim()).filter(l => l);
 
-      // Check for common closing phrases
-      const closingPatterns = [
-        /^sincerely,?$/i,
-        /^best,?$/i,
-        /^regards,?$/i,
-        /^best regards,?$/i,
-        /^thank you,?$/i,
-        /^warm regards,?$/i,
-      ];
-
-      const lines = potentialSignature.split('\n').map((l) => l.trim());
-
-      if (lines.length === 2) {
-        // Closing + Name
-        closing = lines[0];
-        signature = lines[1];
-      } else if (lines.length === 1) {
-        // Just a closing or just a name
-        if (closingPatterns.some((p) => p.test(lines[0]))) {
+      if (lines.length === 1) {
+        // Just one line - could be closing or name
+        if (closingPatterns.some(p => p.test(lines[0]))) {
           closing = lines[0];
-        } else {
+        } else if (lines[0].split(' ').length <= 4) {
+          // Likely a name
           signature = lines[0];
+        } else {
+          // Put it back, it's probably body content
+          body.push(potentialSignature);
+        }
+      } else if (lines.length === 2) {
+        // Two lines - likely closing + name
+        if (closingPatterns.some(p => p.test(lines[0]))) {
+          closing = lines[0];
+          signature = lines[1];
+        } else {
+          // First line might be last sentence, second is name
+          body.push(lines[0]);
+          signature = lines[1];
+        }
+      } else if (lines.length === 3) {
+        // Three lines - might have extra content
+        if (closingPatterns.some(p => p.test(lines[0]))) {
+          closing = lines[0];
+          signature = lines.slice(1).join(' ');
+        } else if (closingPatterns.some(p => p.test(lines[1]))) {
+          body.push(lines[0]);
+          closing = lines[1];
+          signature = lines[2];
         }
       }
     }
   }
 
-  // Check if second to last paragraph is a closing
+  // Check if second to last paragraph is a standalone closing
   if (body.length > 0) {
-    const lastPara = body[body.length - 1];
-    const closingPatterns = [
-      /^sincerely,?$/i,
-      /^best,?$/i,
-      /^regards,?$/i,
-      /^best regards,?$/i,
-      /^thank you,?$/i,
-    ];
-
-    if (closingPatterns.some((p) => p.test(lastPara.trim()))) {
+    const lastPara = body[body.length - 1].trim();
+    if (closingPatterns.some(p => p.test(lastPara))) {
       closing = body.pop()!;
     }
+  }
+
+  // Clean up closing - ensure it ends with comma
+  if (closing && !closing.endsWith(',')) {
+    closing = closing + ',';
+  }
+
+  // If we still don't have body content, something went wrong - put signature back as body
+  if (body.length === 0 && signature !== opts.applicantName) {
+    body.push(signature);
+    signature = opts.applicantName || '[Your Name]';
   }
 
   return { salutation, body, closing, signature };
@@ -216,13 +262,13 @@ function getCoverLetterStyles(primaryColor: string = '#4F46E5'): string {
 
     .header {
       text-align: center;
-      margin-bottom: 24pt;
+      margin-bottom: 30pt;
       padding-bottom: 12pt;
       border-bottom: 2pt solid ${primaryColor};
     }
 
     .name {
-      font-size: 20pt;
+      font-size: 22pt;
       font-weight: 700;
       color: #111827;
       letter-spacing: 0.5pt;
@@ -238,38 +284,22 @@ function getCoverLetterStyles(primaryColor: string = '#4F46E5'): string {
       max-width: 6.5in;
     }
 
-    .date {
-      font-size: 10pt;
-      color: #374151;
-      margin-bottom: 18pt;
-    }
-
-    .recipient {
-      margin-bottom: 18pt;
-    }
-
-    .recipient p {
-      font-size: 10pt;
-      color: #374151;
-      line-height: 1.4;
-    }
-
     .salutation {
       font-size: 11pt;
       color: #111827;
-      margin-bottom: 12pt;
+      margin-bottom: 16pt;
     }
 
     .body {
-      margin-bottom: 18pt;
+      margin-bottom: 20pt;
     }
 
     .body p {
       font-size: 11pt;
       color: #374151;
       line-height: 1.7;
-      margin-bottom: 12pt;
-      text-align: justify;
+      margin-bottom: 14pt;
+      text-align: left;
     }
 
     .body p:last-child {
@@ -280,6 +310,7 @@ function getCoverLetterStyles(primaryColor: string = '#4F46E5'): string {
       font-size: 11pt;
       color: #111827;
       margin-bottom: 24pt;
+      margin-top: 20pt;
     }
 
     .signature {

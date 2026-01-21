@@ -1,7 +1,8 @@
 /**
  * Tailoring Orchestrator
  * Coordinates the 2-pass tailoring process
- * Target: 5-8 seconds total
+ * Target: 5-8 seconds total (without AI detection)
+ * Target: 8-15 seconds (with AI detection)
  */
 
 import { TailoringResult, TailoringError, ResumeData, JDRequirements, AIDetectionInfo } from './types';
@@ -15,6 +16,11 @@ import { detectAIContent } from '../aiDetection';
 
 // Set to true to enable debug logging
 const DEBUG = __DEV__ || false;
+
+// AI Detection settings
+const AI_DETECTION_ENABLED = true;
+const AI_SCORE_THRESHOLD = 60; // Regenerate if above this
+const MAX_HUMANIZE_ATTEMPTS = 1; // Only try once to avoid long waits
 
 export interface TailoringProgress {
   step: 'parsing' | 'analyzing' | 'matching' | 'formatting' | 'cover_letter' | 'ai_check' | 'complete';
@@ -36,20 +42,22 @@ export async function tailorResume(
   const startTime = Date.now();
 
   try {
-    // PASS 1: Extraction & Matching (mostly deterministic)
+    // ============================================
+    // PASS 1: Extraction & Matching (fast, mostly deterministic)
+    // ============================================
 
-    // Step 1A: Parse resume (no LLM)
+    // Step 1A: Parse resume (no LLM) - ~10ms
     onProgress?.({ step: 'parsing', progress: 10, message: 'Parsing resume...' });
     const resumeData = parseResume(resumeText);
     if (DEBUG) logResumeData(resumeData);
 
-    // Step 1B: Analyze JD (1 LLM call)
-    onProgress?.({ step: 'analyzing', progress: 30, message: 'Analyzing job description...' });
+    // Step 1B: Analyze JD (1 LLM call) - ~3-5s
+    onProgress?.({ step: 'analyzing', progress: 25, message: 'Analyzing job description...' });
     const jdRequirements = await analyzeJobDescription(jdText);
     if (DEBUG) logJDRequirements(jdRequirements);
 
-    // Step 1C: Match resume to JD (no LLM)
-    onProgress?.({ step: 'matching', progress: 50, message: 'Matching qualifications...' });
+    // Step 1C: Match resume to JD (no LLM) - ~10ms
+    onProgress?.({ step: 'matching', progress: 40, message: 'Matching qualifications...' });
     const { matched, missing, hasDomainMismatch } = matchResume(resumeData, jdRequirements);
     const matchScore = calculateMatchScore(matched, missing, hasDomainMismatch);
     if (DEBUG) {
@@ -57,64 +65,98 @@ export async function tailorResume(
       logScoreCalculation(matched, missing, matchScore);
     }
 
-    // PASS 2: Formatting & Cover Letter (can run in parallel)
+    // ============================================
+    // PASS 2: Generation (parallel LLM calls) - ~5-8s total
+    // ============================================
 
-    onProgress?.({ step: 'formatting', progress: 60, message: 'Tailoring resume...' });
+    onProgress?.({ step: 'formatting', progress: 55, message: 'Generating content...' });
 
     // Run formatting and cover letter generation in parallel
-    const [tailoredResume, initialCoverLetter] = await Promise.all([
+    const [tailoredResume, coverLetter] = await Promise.all([
       formatTailoredResume(resumeData, matched, jdRequirements),
       generateCoverLetter(matched, jdRequirements, resumeData, false),
     ]);
 
-    // PASS 3: AI Detection & Humanization
-    onProgress?.({ step: 'ai_check', progress: 80, message: 'Checking content quality...' });
+    // ============================================
+    // PASS 3: AI Detection (optional, adds ~5-10s if triggered)
+    // ============================================
+    
+    let finalCoverLetter = coverLetter;
+    let aiDetection: AIDetectionInfo = {
+      score: 0,
+      isHumanPassing: true,
+      feedback: 'Detection skipped',
+    };
 
-    // Detect AI content in cover letter
-    let coverLetter = initialCoverLetter;
-    let aiDetection: AIDetectionInfo;
+    if (AI_DETECTION_ENABLED) {
+      onProgress?.({ step: 'ai_check', progress: 75, message: 'Checking content quality...' });
 
-    try {
-      const detectionResult = await detectAIContent(initialCoverLetter);
+      try {
+        const detectionResult = await detectAIContent(coverLetter);
+        
+        if (DEBUG) {
+          console.log(`Initial AI score: ${detectionResult.score}%`);
+        }
 
-      // If AI score is too high (>50%), regenerate with human-like instructions
-      if (detectionResult.score > 50) {
-        if (DEBUG) console.log(`AI score ${detectionResult.score}% too high, regenerating with human instructions`);
-        onProgress?.({ step: 'cover_letter', progress: 90, message: 'Humanizing content...' });
+        // If score is too high, try ONE humanized regeneration
+        if (detectionResult.score > AI_SCORE_THRESHOLD) {
+          onProgress?.({ step: 'cover_letter', progress: 85, message: 'Improving cover letter...' });
+          
+          if (DEBUG) {
+            console.log(`AI score ${detectionResult.score}% > ${AI_SCORE_THRESHOLD}%, regenerating...`);
+          }
 
-        coverLetter = await generateCoverLetter(matched, jdRequirements, resumeData, true);
+          // Regenerate with humanize=true
+          finalCoverLetter = await generateCoverLetter(matched, jdRequirements, resumeData, true);
 
-        // Re-check AI detection on the humanized version
-        const recheck = await detectAIContent(coverLetter);
+          // Check again (but don't loop)
+          const recheck = await detectAIContent(finalCoverLetter);
+          
+          if (DEBUG) {
+            console.log(`After humanization: ${recheck.score}%`);
+          }
+
+          aiDetection = {
+            score: recheck.score,
+            isHumanPassing: recheck.score < 50,
+            feedback: recheck.feedback,
+          };
+
+          // If still failing, keep the humanized version anyway (it's usually better)
+          // but update the feedback
+          if (recheck.score > AI_SCORE_THRESHOLD) {
+            aiDetection.feedback = 'Some AI patterns detected. Consider minor edits.';
+          }
+        } else {
+          // First attempt passed
+          aiDetection = {
+            score: detectionResult.score,
+            isHumanPassing: detectionResult.score < 50,
+            feedback: detectionResult.feedback,
+          };
+        }
+      } catch (error) {
+        // AI detection failed - continue without it
+        if (DEBUG) console.log('AI detection error:', error);
         aiDetection = {
-          score: recheck.score,
-          isHumanPassing: recheck.isHumanPassing,
-          feedback: recheck.feedback,
-        };
-      } else {
-        aiDetection = {
-          score: detectionResult.score,
-          isHumanPassing: detectionResult.isHumanPassing,
-          feedback: detectionResult.feedback,
+          score: 0,
+          isHumanPassing: true,
+          feedback: 'Detection unavailable',
         };
       }
-    } catch (error) {
-      // If AI detection fails, continue without it
-      if (DEBUG) console.log('AI detection failed:', error);
-      aiDetection = {
-        score: 0,
-        isHumanPassing: true,
-        feedback: 'Detection unavailable',
-      };
     }
 
     onProgress?.({ step: 'complete', progress: 100, message: 'Complete!' });
 
     const processingTime = Date.now() - startTime;
+    
+    if (DEBUG) {
+      console.log(`Total processing time: ${processingTime}ms`);
+    }
 
     return {
       resume: tailoredResume,
-      coverLetter,
+      coverLetter: finalCoverLetter,
       matchScore,
       matchedItems: matched,
       missingItems: missing,
@@ -128,7 +170,7 @@ export async function tailorResume(
 
 /**
  * Quick tailoring (minimal LLM, for offline/fast mode)
- * Uses only 1 LLM call for JD analysis
+ * Uses only 1 LLM call for JD analysis, no AI detection
  */
 export async function tailorResumeQuick(
   resumeText: string,

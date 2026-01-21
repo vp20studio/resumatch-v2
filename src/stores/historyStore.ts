@@ -1,11 +1,20 @@
 /**
  * History Store - Past generation results with application tracking
+ * Syncs with Supabase for cloud persistence
  */
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TailoringResult } from '../services/tailoring/types';
+import {
+  getApplications,
+  saveApplication,
+  updateApplicationStatus,
+  deleteApplication,
+  Application,
+} from '../services/database';
+import { useAuthStore } from './authStore';
 
 export type ApplicationStatus = 'generated' | 'applied' | 'replied' | 'interviewing' | 'offer' | 'rejected';
 
@@ -24,19 +33,28 @@ export interface HistoryItem {
   jobUrl: string | null;
   notes: string | null;
   statusHistory: Array<{ status: ApplicationStatus; date: string }>;
+
+  // Sync status
+  syncedToCloud: boolean;
 }
 
 interface HistoryState {
   items: HistoryItem[];
+  isLoading: boolean;
+  isSyncing: boolean;
 
   // Actions
-  addItem: (item: Omit<HistoryItem, 'id' | 'createdAt' | 'status' | 'appliedDate' | 'jobUrl' | 'notes' | 'statusHistory'>) => string;
-  removeItem: (id: string) => void;
-  updateStatus: (id: string, status: ApplicationStatus, notes?: string) => void;
-  markAsApplied: (id: string, jobUrl?: string) => void;
+  addItem: (item: Omit<HistoryItem, 'id' | 'createdAt' | 'status' | 'appliedDate' | 'jobUrl' | 'notes' | 'statusHistory' | 'syncedToCloud'>) => Promise<string>;
+  removeItem: (id: string) => Promise<void>;
+  updateStatus: (id: string, status: ApplicationStatus, notes?: string) => Promise<void>;
+  markAsApplied: (id: string, jobUrl?: string) => Promise<void>;
   updateNotes: (id: string, notes: string) => void;
   updateJobUrl: (id: string, jobUrl: string) => void;
   clearHistory: () => void;
+
+  // Cloud sync
+  loadFromCloud: () => Promise<void>;
+  syncToCloud: () => Promise<void>;
 
   // Getters
   getByStatus: (status: ApplicationStatus) => HistoryItem[];
@@ -48,37 +66,110 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
+// Convert database Application to HistoryItem
+function dbToHistoryItem(app: Application): HistoryItem {
+  return {
+    id: app.id,
+    jobTitle: app.job_title || 'Unknown Position',
+    company: app.company || 'Unknown Company',
+    matchScore: app.match_score || 0,
+    result: {
+      resume: app.tailored_resume || { skills: [], experiences: [], education: [], rawText: '' },
+      coverLetter: app.cover_letter || '',
+      matchScore: app.match_score || 0,
+      matchedItems: [],
+      missingItems: [],
+      processingTime: 0,
+    },
+    jobDescription: app.job_description || '',
+    createdAt: app.created_at,
+    status: app.status as ApplicationStatus,
+    appliedDate: app.applied_at,
+    jobUrl: null,
+    notes: null,
+    statusHistory: [{ status: app.status as ApplicationStatus, date: app.created_at }],
+    syncedToCloud: true,
+  };
+}
+
 export const useHistoryStore = create<HistoryState>()(
   persist(
     (set, get) => ({
       items: [],
+      isLoading: false,
+      isSyncing: false,
 
-      addItem: (item) => {
+      addItem: async (item) => {
         const id = generateId();
+        const now = new Date().toISOString();
+
+        const newItem: HistoryItem = {
+          ...item,
+          id,
+          createdAt: now,
+          status: 'generated',
+          appliedDate: null,
+          jobUrl: null,
+          notes: null,
+          statusHistory: [{ status: 'generated', date: now }],
+          syncedToCloud: false,
+        };
+
+        // Add locally first
         set((state) => ({
-          items: [
-            {
-              ...item,
-              id,
-              createdAt: new Date().toISOString(),
-              status: 'generated',
-              appliedDate: null,
-              jobUrl: null,
-              notes: null,
-              statusHistory: [{ status: 'generated', date: new Date().toISOString() }],
-            },
-            ...state.items,
-          ],
+          items: [newItem, ...state.items],
         }));
+
+        // Sync to cloud if authenticated
+        const userId = useAuthStore.getState().user?.id;
+        if (userId) {
+          try {
+            const cloudApp = await saveApplication(userId, {
+              jobTitle: item.jobTitle,
+              company: item.company,
+              jobDescription: item.jobDescription,
+              matchScore: item.matchScore,
+              tailoredResume: item.result.resume,
+              coverLetter: item.result.coverLetter,
+              status: 'generated',
+            });
+
+            if (cloudApp) {
+              // Update with cloud ID
+              set((state) => ({
+                items: state.items.map((i) =>
+                  i.id === id
+                    ? { ...i, id: cloudApp.id, syncedToCloud: true }
+                    : i
+                ),
+              }));
+              return cloudApp.id;
+            }
+          } catch (err) {
+            console.error('Failed to sync to cloud:', err);
+          }
+        }
+
         return id;
       },
 
-      removeItem: (id) =>
+      removeItem: async (id) => {
         set((state) => ({
           items: state.items.filter((item) => item.id !== id),
-        })),
+        }));
 
-      updateStatus: (id, status, notes) =>
+        // Delete from cloud
+        const userId = useAuthStore.getState().user?.id;
+        if (userId) {
+          try {
+            await deleteApplication(id);
+          } catch (err) {
+            console.error('Failed to delete from cloud:', err);
+          }
+        }
+      },
+
+      updateStatus: async (id, status, notes) => {
         set((state) => ({
           items: state.items.map((item) =>
             item.id === id
@@ -97,25 +188,49 @@ export const useHistoryStore = create<HistoryState>()(
                 }
               : item
           ),
-        })),
+        }));
 
-      markAsApplied: (id, jobUrl) =>
+        // Update in cloud
+        const userId = useAuthStore.getState().user?.id;
+        if (userId) {
+          try {
+            await updateApplicationStatus(id, status);
+          } catch (err) {
+            console.error('Failed to update status in cloud:', err);
+          }
+        }
+      },
+
+      markAsApplied: async (id, jobUrl) => {
+        const now = new Date().toISOString();
+
         set((state) => ({
           items: state.items.map((item) =>
             item.id === id
               ? {
                   ...item,
                   status: 'applied' as ApplicationStatus,
-                  appliedDate: new Date().toISOString(),
+                  appliedDate: now,
                   jobUrl: jobUrl ?? item.jobUrl,
                   statusHistory: [
                     ...item.statusHistory,
-                    { status: 'applied' as ApplicationStatus, date: new Date().toISOString() },
+                    { status: 'applied' as ApplicationStatus, date: now },
                   ],
                 }
               : item
           ),
-        })),
+        }));
+
+        // Update in cloud
+        const userId = useAuthStore.getState().user?.id;
+        if (userId) {
+          try {
+            await updateApplicationStatus(id, 'applied');
+          } catch (err) {
+            console.error('Failed to mark as applied in cloud:', err);
+          }
+        }
+      },
 
       updateNotes: (id, notes) =>
         set((state) => ({
@@ -132,6 +247,66 @@ export const useHistoryStore = create<HistoryState>()(
         })),
 
       clearHistory: () => set({ items: [] }),
+
+      loadFromCloud: async () => {
+        const userId = useAuthStore.getState().user?.id;
+        if (!userId) return;
+
+        set({ isLoading: true });
+
+        try {
+          const applications = await getApplications(userId);
+          const items = applications.map(dbToHistoryItem);
+
+          set({
+            items,
+            isLoading: false,
+          });
+        } catch (err) {
+          console.error('Failed to load from cloud:', err);
+          set({ isLoading: false });
+        }
+      },
+
+      syncToCloud: async () => {
+        const userId = useAuthStore.getState().user?.id;
+        if (!userId) return;
+
+        const { items } = get();
+        const unsyncedItems = items.filter((item) => !item.syncedToCloud);
+
+        if (unsyncedItems.length === 0) return;
+
+        set({ isSyncing: true });
+
+        for (const item of unsyncedItems) {
+          try {
+            const cloudApp = await saveApplication(userId, {
+              jobTitle: item.jobTitle,
+              company: item.company,
+              jobDescription: item.jobDescription,
+              matchScore: item.matchScore,
+              tailoredResume: item.result.resume,
+              coverLetter: item.result.coverLetter,
+              status: item.status,
+            });
+
+            if (cloudApp) {
+              set((state) => ({
+                items: state.items.map((i) =>
+                  i.id === item.id
+                    ? { ...i, id: cloudApp.id, syncedToCloud: true }
+                    : i
+                ),
+              }));
+            }
+          } catch (err) {
+            console.error('Failed to sync item:', err);
+          }
+        }
+
+        set({ isSyncing: false });
+      },
 
       getByStatus: (status) => {
         return get().items.filter((item) => item.status === status);

@@ -2,14 +2,12 @@ import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 're
 import { router } from 'expo-router';
 import { Text, Button, Card } from '../../src/components/ui';
 import { colors, spacing, borderRadius } from '../../src/theme';
-import { useAuthStore } from '../../src/stores';
 
 export default function PaywallScreen() {
-  const upgradeToPremium = useAuthStore((state) => state.upgradeToPremium);
-
   const handlePurchase = (plan: string) => {
-    // In production, integrate with RevenueCat/StoreKit
-    upgradeToPremium();
+    // TODO: In production, integrate with RevenueCat/StoreKit
+    // For now, just close the modal
+    console.log('Purchase plan:', plan);
     router.back();
   };
 

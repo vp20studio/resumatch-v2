@@ -1,14 +1,16 @@
 /**
  * AI Detection Service using ZeroGPT API
- * Detects AI-generated content in cover letters and resume sections
+ * Detects AI-generated content in cover letters
  */
 
-const ZEROGPT_API_KEY = 'bb9e0a7d-7910-4ee2-a9ad-b97135be8db0';
 const ZEROGPT_API_URL = 'https://api.zerogpt.com/api/detect/detectText';
 
+// NOTE: Move this to env.ts in production
+const ZEROGPT_API_KEY = 'bb9e0a7d-7910-4ee2-a9ad-b97135be8db0';
+
 export interface AIDetectionResult {
-  score: number; // 0-100 (percentage AI-generated)
-  isHumanPassing: boolean; // true if score < 50 (more human than AI)
+  score: number; // 0-100 (percentage AI-generated, lower is better)
+  isHumanPassing: boolean; // true if score < 50
   sentences: {
     text: string;
     isAI: boolean;
@@ -24,17 +26,20 @@ export interface AIDetectionResult {
  */
 export async function detectAIContent(text: string): Promise<AIDetectionResult> {
   // Skip detection for very short text
-  if (text.trim().length < 100) {
+  if (!text || text.trim().length < 100) {
     return {
       score: 0,
       isHumanPassing: true,
       sentences: [],
-      textWords: text.split(/\s+/).length,
+      textWords: text ? text.split(/\s+/).length : 0,
       feedback: 'Text too short to analyze',
     };
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
     const response = await fetch(ZEROGPT_API_URL, {
       method: 'POST',
       headers: {
@@ -44,25 +49,27 @@ export async function detectAIContent(text: string): Promise<AIDetectionResult> 
       body: JSON.stringify({
         input_text: text,
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error('ZeroGPT API error:', response.status, response.statusText);
-      // Return a passing score on API failure to not block the flow
-      return {
-        score: 0,
-        isHumanPassing: true,
-        sentences: [],
-        textWords: text.split(/\s+/).length,
-        feedback: 'Detection unavailable',
-      };
+      return createFallbackResult(text, 'Detection service unavailable');
     }
 
     const data = await response.json();
 
+    // Check for API errors in response
+    if (data.success === false || data.error) {
+      console.error('ZeroGPT API returned error:', data.error);
+      return createFallbackResult(text, 'Detection service error');
+    }
+
     // ZeroGPT returns:
     // - fakePercentage: percentage of AI-generated content (0-100)
-    // - isHuman: boolean
+    // - isHuman: boolean (but we calculate our own threshold)
     // - sentences: array of { sentence, isAI }
     // - textWords: word count
 
@@ -75,19 +82,8 @@ export async function detectAIContent(text: string): Promise<AIDetectionResult> 
       isAI: s.isAI === true,
     }));
 
-    // Generate feedback based on score
-    let feedback: string;
-    if (aiScore < 20) {
-      feedback = 'Excellent! Very human-like writing.';
-    } else if (aiScore < 40) {
-      feedback = 'Good. Mostly natural writing style.';
-    } else if (aiScore < 60) {
-      feedback = 'Moderate AI patterns detected.';
-    } else if (aiScore < 80) {
-      feedback = 'High AI content. Consider revising.';
-    } else {
-      feedback = 'Very high AI content. Rewrite recommended.';
-    }
+    // Generate helpful, encouraging feedback based on score
+    const feedback = generateFeedback(aiScore);
 
     return {
       score: Math.round(aiScore),
@@ -96,63 +92,109 @@ export async function detectAIContent(text: string): Promise<AIDetectionResult> 
       textWords: data.data?.textWords || text.split(/\s+/).length,
       feedback,
     };
-  } catch (error) {
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error('AI detection timeout');
+      return createFallbackResult(text, 'Detection timed out');
+    }
+    
     console.error('AI detection error:', error);
-    // Return a passing score on error to not block the flow
-    return {
-      score: 0,
-      isHumanPassing: true,
-      sentences: [],
-      textWords: text.split(/\s+/).length,
-      feedback: 'Detection unavailable',
-    };
+    return createFallbackResult(text, 'Detection unavailable');
   }
 }
 
 /**
+ * Generate user-friendly feedback based on AI score
+ */
+function generateFeedback(aiScore: number): string {
+  if (aiScore < 20) {
+    return 'Excellent! Your writing sounds very natural and human.';
+  }
+  if (aiScore < 35) {
+    return 'Great job! Reads like it was written by a person.';
+  }
+  if (aiScore < 50) {
+    return 'Good. Mostly natural with minor AI-like patterns.';
+  }
+  if (aiScore < 65) {
+    return 'Some AI patterns detected. A few personal edits would help.';
+  }
+  if (aiScore < 80) {
+    return 'Noticeable AI patterns. Consider adding personal touches.';
+  }
+  return 'High AI content detected. We recommend editing before sending.';
+}
+
+/**
+ * Create a fallback result when API fails
+ */
+function createFallbackResult(text: string, reason: string): AIDetectionResult {
+  return {
+    score: 0,
+    isHumanPassing: true,
+    sentences: [],
+    textWords: text.split(/\s+/).length,
+    feedback: reason,
+  };
+}
+
+/**
+ * Quick check without full analysis (for validation only)
+ * Returns just the score, faster when you don't need details
+ */
+export async function quickAICheck(text: string): Promise<number> {
+  const result = await detectAIContent(text);
+  return result.score;
+}
+
+/**
  * Human-like writing style instructions for LLM prompts
+ * Use these when generating content that needs to pass AI detection
  */
 export const HUMAN_WRITING_INSTRUCTIONS = `
-CRITICAL: Write in a natural, human voice. Follow these rules:
-1. Vary sentence length - mix short punchy sentences with longer detailed ones
-2. Use contractions naturally (I'm, I've, don't, can't)
-3. Start sentences with "And" or "But" occasionally
-4. Use specific numbers and details, not round numbers
-5. Include minor imperfections - not everything needs to be perfect
-6. Avoid overused AI phrases like "leverage", "spearhead", "synergy", "passionate about"
-7. Use active voice, first person naturally
-8. Include subtle personality - brief opinions or preferences where appropriate
-9. Avoid excessive enthusiasm or superlatives
-10. Write like you're explaining to a colleague, not writing a formal essay
+Write like a REAL PERSON, not AI. Follow these rules strictly:
+
+MUST DO:
+- Use contractions: I'm, I've, I'd, don't, can't, won't
+- Vary sentence length dramatically (some short, some longer)
+- Start 1-2 sentences with "And" or "But"
+- Use specific details and numbers (not round numbers)
+- Include one slightly informal phrase
+
+MUST AVOID:
+- "Passionate about" or "excited to"
+- "Leverage", "synergy", "spearhead", "dynamic"
+- "Thrilled", "delighted", "cutting-edge"
+- Perfect parallel structure in every list
+- Overly enthusiastic tone
+- Starting every sentence the same way
+
+TONE:
+- Confident but not arrogant
+- Professional but human
+- Specific but concise
 `;
 
 /**
- * Instructions specifically for cover letters to sound human
+ * Cover letter specific instructions to avoid AI detection
  */
 export const COVER_LETTER_HUMAN_INSTRUCTIONS = `
-Write this cover letter as a real person would - not as an AI:
+Write this cover letter as a REAL PERSON would:
 
-VOICE & TONE:
-- Conversational but professional
-- Confident without being arrogant
-- Genuine interest, not manufactured enthusiasm
-- Specific and concrete, not vague platitudes
+CRITICAL RULES:
+1. Use contractions throughout (I'm, I've, I'd, don't)
+2. Start at least one sentence with "And" or "But"  
+3. Mix very short sentences with longer ones
+4. Include one slightly casual phrase (like "honestly" or "I have to say")
+5. Be matter-of-fact about achievements, don't oversell
 
-STRUCTURE:
-- Don't follow a rigid template
-- Vary paragraph lengths
-- Get to the point quickly
+BANNED PHRASES (never use these):
+- "passionate about"
+- "excited to" / "thrilled to"
+- "leverage" / "synergy"
+- "unique opportunity"
+- "cutting-edge" / "spearhead"
+- "I believe I would be a great fit"
 
-LANGUAGE:
-- Use contractions (I'm, I've, I'd)
-- Avoid: "passionate about", "leverage", "synergy", "excited to", "unique opportunity"
-- Prefer: specific examples, concrete achievements, genuine interest
-- Mix sentence lengths naturally
-- Use active voice
-
-CONTENT:
-- Reference specific things about the company (real details)
-- Connect your experience to their needs naturally
-- Be specific about what you'd bring
-- End with a simple, direct close - not an overeager plea
+Keep it under 250 words. Sound like a confident professional, not a robot.
 `;

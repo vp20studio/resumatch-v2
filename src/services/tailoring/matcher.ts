@@ -1,6 +1,8 @@
 /**
  * Resume Matcher - Deterministic matching, NO LLM
  * Matches resume items to job requirements
+ * 
+ * COMPREHENSIVE support for: Software, Marketing, Sales, Design, Data, Finance, Operations
  */
 
 import {
@@ -13,23 +15,117 @@ import {
   Education,
 } from './types';
 
-// Comprehensive skill synonyms for semantic matching
+// =============================================================================
+// COMPREHENSIVE SKILL SYNONYMS
+// =============================================================================
+
 const SKILL_SYNONYMS: Record<string, string[]> = {
-  // Programming Languages
+  // -------------------------------------------------------------------------
+  // MARKETING - Paid Media & Advertising
+  // -------------------------------------------------------------------------
+  'paid media': ['paid advertising', 'paid ads', 'media buying', 'ad spend', 'advertising spend', 'paid social', 'paid search', 'performance marketing', 'digital advertising'],
+  'google ads': ['google adwords', 'adwords', 'google ppc', 'sem', 'search engine marketing', 'google search ads', 'search ads', 'ppc'],
+  'linkedin ads': ['linkedin advertising', 'linkedin campaigns', 'linkedin sponsored', 'b2b advertising'],
+  'facebook ads': ['meta ads', 'fb ads', 'instagram ads', 'social ads', 'facebook advertising', 'meta advertising'],
+  'youtube ads': ['video ads', 'youtube advertising', 'video advertising'],
+  'display ads': ['banner ads', 'programmatic', 'gdn', 'google display network', 'display advertising'],
+  ppc: ['pay per click', 'pay-per-click', 'cpc', 'cost per click', 'paid search'],
+  roas: ['return on ad spend', 'ad roi', 'advertising roi', 'blended roas'],
+  cpa: ['cost per acquisition', 'cost per action', 'acquisition cost'],
+  ctr: ['click through rate', 'click-through rate', 'clickthrough'],
+
+  // -------------------------------------------------------------------------
+  // MARKETING - Demand Gen & ABM
+  // -------------------------------------------------------------------------
+  'demand generation': ['demand gen', 'demandgen', 'lead generation', 'lead gen', 'leadgen', 'pipeline generation', 'pipeline gen'],
+  abm: ['account-based marketing', 'account based marketing', 'abm campaigns', 'abm strategy', 'abm strategies', 'target account', 'account-based'],
+  'lead scoring': ['lead qualification', 'mql scoring', 'lead grading', 'lead prioritization'],
+  mql: ['marketing qualified lead', 'marketing qualified leads', 'marketing-qualified'],
+  'sql lead': ['sales qualified lead', 'sales qualified leads', 'sales-qualified', 'sales ready'],
+  'lead nurturing': ['nurture campaigns', 'drip campaigns', 'email nurturing', 'lead nurture'],
+  pipeline: ['sales pipeline', 'pipeline growth', 'pipeline generation', 'qualified pipeline', 'pipeline value'],
+
+  // -------------------------------------------------------------------------
+  // MARKETING - Tools & Platforms
+  // -------------------------------------------------------------------------
+  hubspot: ['hs', 'hubspot crm', 'hubspot marketing', 'hubspot sales'],
+  marketo: ['adobe marketo', 'marketo engage'],
+  salesforce: ['sfdc', 'salesforce crm', 'sf', 'sales cloud', 'salesforce marketing cloud'],
+  pardot: ['salesforce pardot', 'pardot b2b'],
+  'marketing automation': ['ma platform', 'automation platform', 'email automation', 'marketing ops'],
+  'google analytics': ['ga', 'ga4', 'google analytics 4', 'analytics'],
+  semrush: ['sem rush', 'semrush tools'],
+  ahrefs: ['ahrefs seo', 'backlink analysis'],
+
+  // -------------------------------------------------------------------------
+  // MARKETING - SEO & Content
+  // -------------------------------------------------------------------------
+  seo: ['search engine optimization', 'organic search', 'search optimization', 'organic traffic'],
+  'content marketing': ['content strategy', 'content creation', 'content development', 'blog strategy'],
+  'aeo': ['answer engine optimization', 'ai search optimization', 'generative search', 'geo', 'generative engine optimization'],
+  copywriting: ['copy writing', 'ad copy', 'marketing copy', 'sales copy'],
+
+  // -------------------------------------------------------------------------
+  // MARKETING - Strategy & Analytics
+  // -------------------------------------------------------------------------
+  'b2b marketing': ['b2b', 'business to business', 'enterprise marketing'],
+  'b2c marketing': ['b2c', 'consumer marketing', 'dtc', 'direct to consumer'],
+  'growth marketing': ['growth hacking', 'growth', 'user acquisition'],
+  'brand marketing': ['brand strategy', 'brand awareness', 'branding'],
+  'product marketing': ['pmm', 'product positioning', 'go-to-market', 'gtm'],
+  'marketing analytics': ['marketing data', 'campaign analytics', 'performance analytics', 'marketing metrics'],
+  'a/b testing': ['ab testing', 'split testing', 'multivariate testing', 'experimentation'],
+  cro: ['conversion rate optimization', 'conversion optimization', 'landing page optimization'],
+
+  // -------------------------------------------------------------------------
+  // SALES
+  // -------------------------------------------------------------------------
+  'enterprise sales': ['enterprise selling', 'large account sales', 'strategic sales', 'complex sales'],
+  'saas sales': ['software sales', 'subscription sales', 'recurring revenue sales'],
+  'sales operations': ['sales ops', 'revenue operations', 'rev ops', 'revops'],
+  quota: ['quota attainment', 'sales quota', 'revenue target', 'sales target'],
+  'account management': ['account executive', 'ae', 'customer success', 'client management'],
+  'business development': ['biz dev', 'bd', 'partnerships', 'strategic partnerships'],
+  crm: ['customer relationship management', 'salesforce', 'hubspot crm', 'pipedrive'],
+
+  // -------------------------------------------------------------------------
+  // LEADERSHIP & MANAGEMENT
+  // -------------------------------------------------------------------------
+  leadership: ['lead', 'leading', 'led', 'managed', 'manager', 'management', 'supervised', 'oversaw', 'directed', 'headed', 'spearheaded'],
+  'team management': ['team lead', 'team leadership', 'people management', 'direct reports', 'managing team'],
+  'team leadership': ['leading team', 'led team', 'managed team', 'supervising', 'overseeing'],
+  mentoring: ['mentor', 'mentored', 'coaching', 'coached', 'trained', 'training', 'onboarded', 'guided', 'developed team'],
+  'cross-functional': ['cross functional', 'cross-team', 'stakeholder management', 'collaboration'],
+
+  // -------------------------------------------------------------------------
+  // GENERAL BUSINESS
+  // -------------------------------------------------------------------------
+  revenue: ['revenue growth', 'top line', 'sales revenue', 'arr', 'mrr', 'annual recurring revenue'],
+  budget: ['budget management', 'p&l', 'financial planning', 'cost management', 'spend management'],
+  roi: ['return on investment', 'investment return', 'payback'],
+  kpi: ['key performance indicator', 'kpis', 'metrics', 'okr', 'okrs'],
+  strategy: ['strategic planning', 'strategic thinking', 'business strategy'],
+  analytics: ['data analysis', 'reporting', 'insights', 'dashboards', 'business intelligence'],
+
+  // -------------------------------------------------------------------------
+  // PROGRAMMING LANGUAGES
+  // -------------------------------------------------------------------------
   javascript: ['js', 'es6', 'es2015', 'ecmascript', 'vanilla js'],
   typescript: ['ts', 'typed javascript'],
   python: ['py', 'python3', 'python2'],
-  java: ['jvm', 'j2ee', 'java ee', 'spring boot'],
+  java: ['jvm', 'j2ee', 'java ee', 'spring boot', 'spring'],
   'c++': ['cpp', 'c plus plus'],
   csharp: ['c#', '.net', 'dotnet'],
   ruby: ['rails', 'ruby on rails', 'ror'],
   go: ['golang'],
   rust: ['rustlang'],
   php: ['laravel', 'symfony'],
-  swift: ['ios development'],
-  kotlin: ['android development'],
+  swift: ['ios development', 'ios'],
+  kotlin: ['android development', 'android'],
 
-  // Frontend
+  // -------------------------------------------------------------------------
+  // FRONTEND
+  // -------------------------------------------------------------------------
   react: ['reactjs', 'react.js', 'react native', 'rn', 'next.js', 'nextjs', 'redux'],
   vue: ['vuejs', 'vue.js', 'nuxt', 'nuxtjs'],
   angular: ['angularjs', 'angular.js', 'ng'],
@@ -37,55 +133,152 @@ const SKILL_SYNONYMS: Record<string, string[]> = {
   html: ['html5', 'markup'],
   css: ['css3', 'scss', 'sass', 'less', 'styled-components', 'tailwind'],
 
-  // Backend
+  // -------------------------------------------------------------------------
+  // BACKEND & INFRASTRUCTURE
+  // -------------------------------------------------------------------------
   nodejs: ['node.js', 'node', 'express', 'expressjs', 'nestjs', 'koa'],
   backend: ['back-end', 'back end', 'server-side', 'api development'],
   api: ['rest', 'restful', 'graphql', 'grpc', 'soap', 'web services'],
   microservices: ['micro-services', 'service-oriented', 'soa'],
-
-  // Cloud & DevOps
   aws: ['amazon web services', 'ec2', 's3', 'lambda', 'cloudformation', 'dynamodb', 'rds', 'eks', 'ecs'],
   gcp: ['google cloud', 'google cloud platform', 'bigquery', 'cloud run'],
   azure: ['microsoft azure', 'azure devops'],
-  cloud: ['cloud computing', 'cloud infrastructure', 'cloud services', 'aws', 'gcp', 'azure'],
+  cloud: ['cloud computing', 'cloud infrastructure', 'cloud services'],
   docker: ['containerization', 'containers', 'dockerfile'],
   kubernetes: ['k8s', 'kubectl', 'helm', 'container orchestration'],
   devops: ['dev ops', 'infrastructure', 'sre', 'site reliability'],
-  cicd: ['ci/cd', 'ci cd', 'continuous integration', 'continuous deployment', 'jenkins', 'github actions', 'gitlab ci', 'circleci'],
-  terraform: ['infrastructure as code', 'iac', 'cloudformation'],
+  cicd: ['ci/cd', 'ci cd', 'continuous integration', 'continuous deployment', 'jenkins', 'github actions', 'gitlab ci'],
 
-  // Databases
+  // -------------------------------------------------------------------------
+  // DATABASES
+  // -------------------------------------------------------------------------
   sql: ['mysql', 'postgresql', 'postgres', 'mssql', 'sql server', 'oracle', 'relational database'],
   nosql: ['mongodb', 'dynamodb', 'cassandra', 'redis', 'couchdb', 'document database'],
-  database: ['db', 'data storage', 'rdbms', 'sql', 'nosql'],
+  database: ['db', 'data storage', 'rdbms'],
   postgresql: ['postgres', 'psql'],
   mongodb: ['mongo', 'document db'],
 
-  // Data & ML
+  // -------------------------------------------------------------------------
+  // DATA & ML
+  // -------------------------------------------------------------------------
   'machine learning': ['ml', 'deep learning', 'ai', 'artificial intelligence', 'neural networks'],
-  'data science': ['data analysis', 'data analytics', 'data engineering'],
+  'data science': ['data analysis', 'data analytics', 'data engineering', 'statistical analysis'],
   tensorflow: ['keras', 'pytorch', 'deep learning framework'],
 
-  // Soft Skills
-  leadership: ['lead', 'leading', 'led', 'managed', 'manager', 'management', 'supervised', 'oversaw', 'directed', 'headed'],
-  mentoring: ['mentor', 'mentored', 'coaching', 'coached', 'trained', 'training', 'onboarded', 'guided'],
-  communication: ['communicating', 'presenting', 'presentations', 'stakeholder', 'cross-functional', 'collaborated', 'collaboration', 'liaison'],
+  // -------------------------------------------------------------------------
+  // DESIGN
+  // -------------------------------------------------------------------------
+  figma: ['figma design', 'figma prototyping'],
+  sketch: ['sketch app', 'sketch design'],
+  'ux design': ['user experience', 'ux', 'user research', 'usability'],
+  'ui design': ['user interface', 'ui', 'visual design', 'interface design'],
+  'product design': ['digital product design', 'app design'],
+  wireframing: ['wireframes', 'low fidelity', 'lo-fi'],
+  prototyping: ['prototypes', 'high fidelity', 'hi-fi', 'interactive prototype'],
+
+  // -------------------------------------------------------------------------
+  // PROJECT MANAGEMENT
+  // -------------------------------------------------------------------------
+  agile: ['scrum', 'kanban', 'sprint', 'agile methodology', 'ceremonies', 'standups', 'retrospectives'],
+  'project management': ['pm', 'program management', 'project delivery'],
+  jira: ['jira software', 'atlassian jira'],
+
+  // -------------------------------------------------------------------------
+  // SOFT SKILLS
+  // -------------------------------------------------------------------------
+  communication: ['communicating', 'presenting', 'presentations', 'stakeholder', 'collaborated', 'collaboration', 'liaison'],
   'problem-solving': ['problem solving', 'troubleshooting', 'debugging', 'analytical', 'critical thinking', 'solutions'],
   teamwork: ['team player', 'collaborative', 'collaboration', 'worked with', 'partnered'],
-  agile: ['scrum', 'kanban', 'sprint', 'jira', 'agile methodology', 'ceremonies', 'standups', 'retrospectives'],
-
-  // Experience levels
-  senior: ['sr', 'lead', 'principal', 'staff', 'experienced', '5+ years', '5 years', 'senior level'],
-  experience: ['years', 'year', 'experienced', 'background'],
 };
 
-// Experience level keywords that indicate years
-const EXPERIENCE_PATTERNS = [
-  { pattern: /(\d+)\+?\s*years?/i, extract: (match: RegExpMatchArray) => parseInt(match[1]) },
-  { pattern: /senior|lead|principal|staff/i, years: 5 },
-  { pattern: /mid-?level|intermediate/i, years: 3 },
-  { pattern: /junior|entry/i, years: 1 },
-];
+// =============================================================================
+// DOMAIN DETECTION
+// =============================================================================
+
+const DOMAIN_INDICATORS: Record<string, string[]> = {
+  marketing: [
+    'marketing', 'demand gen', 'demand generation', 'paid media', 'paid ads',
+    'google ads', 'linkedin ads', 'facebook ads', 'abm', 'account-based',
+    'seo', 'sem', 'ppc', 'lead gen', 'mql', 'hubspot', 'marketo',
+    'content marketing', 'brand', 'growth marketing', 'campaign',
+    'roas', 'ctr', 'conversion', 'digital marketing', 'performance marketing',
+    'b2b marketing', 'marketing manager', 'marketing lead', 'marketing director'
+  ],
+  sales: [
+    'sales', 'account executive', 'business development', 'quota', 'pipeline',
+    'enterprise sales', 'saas sales', 'b2b sales', 'revenue', 'deals',
+    'account management', 'sales operations', 'sales manager'
+  ],
+  software: [
+    'software engineer', 'software developer', 'programming', 'coding',
+    'full stack', 'fullstack', 'frontend developer', 'backend developer',
+    'react', 'angular', 'vue', 'javascript', 'typescript', 'python', 'java',
+    'api', 'microservices', 'aws', 'cloud', 'devops', 'computer science'
+  ],
+  design: [
+    'ux designer', 'ui designer', 'product designer', 'design system',
+    'user research', 'usability', 'wireframe', 'prototype', 'figma', 'sketch',
+    'visual design', 'interaction design', 'design lead'
+  ],
+  data: [
+    'data scientist', 'data analyst', 'data engineer', 'machine learning',
+    'analytics', 'statistical', 'sql', 'python', 'tableau', 'power bi',
+    'data visualization', 'big data'
+  ],
+  finance: [
+    'financial analyst', 'finance manager', 'accounting', 'budget',
+    'forecasting', 'fp&a', 'controller', 'cfo', 'investment'
+  ],
+  operations: [
+    'operations manager', 'ops', 'process improvement', 'supply chain',
+    'logistics', 'project manager', 'program manager'
+  ],
+};
+
+/**
+ * Detect domains in text
+ */
+function detectDomain(text: string): string[] {
+  const textLower = text.toLowerCase();
+  const detected: string[] = [];
+
+  for (const [domain, indicators] of Object.entries(DOMAIN_INDICATORS)) {
+    const matches = indicators.filter(ind => textLower.includes(ind)).length;
+    // Require at least 2 indicators OR 1 very specific one
+    if (matches >= 2 || indicators.some(ind => ind.length > 10 && textLower.includes(ind))) {
+      detected.push(domain);
+    }
+  }
+
+  return detected;
+}
+
+/**
+ * Check if domains overlap
+ */
+function domainsOverlap(reqDomains: string[], resumeDomains: string[]): boolean {
+  if (reqDomains.length === 0) return true;
+  if (resumeDomains.length === 0) return true; // Be generous if we can't detect
+
+  // Marketing and Sales often overlap
+  const related: Record<string, string[]> = {
+    marketing: ['sales', 'operations'],
+    sales: ['marketing', 'operations'],
+    software: ['data'],
+    data: ['software'],
+  };
+
+  return reqDomains.some(rd => {
+    if (resumeDomains.includes(rd)) return true;
+    // Check related domains
+    const relatedDomains = related[rd] || [];
+    return relatedDomains.some(rel => resumeDomains.includes(rel));
+  });
+}
+
+// =============================================================================
+// MAIN MATCHING FUNCTION
+// =============================================================================
 
 /**
  * Match resume data to job requirements
@@ -102,31 +295,29 @@ export function matchResume(
   const matched: MatchResult[] = [];
   const missing: MatchResult[] = [];
 
-  // Track domain-level mismatch for the whole job
-  const jdText = [jd.title, ...jd.required.map(r => r.text), ...jd.preferred.map(r => r.text)].join(' ');
+  // Detect domains
+  const resumeText = getResumeFullText(resume);
+  const jdText = getJDFullText(jd);
+  const resumeDomains = detectDomain(resumeText);
   const jdDomains = detectDomain(jdText);
-  const resumeDomains = getResumeDomains(resume);
-  const hasDomainMismatch = jdDomains.length > 0 && !domainsOverlap(jdDomains, resumeDomains);
+  const hasDomainMismatch = !domainsOverlap(jdDomains, resumeDomains);
+
+  // Lower thresholds for matching
+  const MATCH_THRESHOLD = 55; // Was 70-80, now 55
 
   for (const req of allRequirements) {
-    const match = findBestMatch(req, resume, jd.keywords);
+    const match = findBestMatch(req, resume, jd.keywords, resumeDomains, jdDomains);
 
-    // Require score >= 70 for a match - stricter threshold
-    // Also require higher score (80) for technical requirements
-    const isTechnical = isTechnicalRequirement(req.text);
-    const threshold = isTechnical ? 80 : 70;
-
-    if (match.score >= threshold) {
+    if (match.score >= MATCH_THRESHOLD) {
       matched.push(match);
     } else {
       missing.push(match);
     }
   }
 
-  // Sort by score descending
+  // Sort by score
   matched.sort((a, b) => b.score - a.score);
   missing.sort((a, b) => {
-    // Required items first, then by importance
     const impOrder = { critical: 0, high: 1, medium: 2, low: 3 };
     return impOrder[a.requirement.importance] - impOrder[b.requirement.importance];
   });
@@ -135,26 +326,37 @@ export function matchResume(
 }
 
 /**
- * Get the primary domain of a resume based on skills and experience
+ * Get full text from resume for domain detection
  */
-function getResumeDomains(resume: ResumeData): string[] {
-  const allText = [
+function getResumeFullText(resume: ResumeData): string {
+  return [
     ...resume.skills.map(s => s.name),
     ...resume.experiences.map(e => `${e.title} ${e.company}`),
     ...resume.experiences.flatMap(e => e.bullets.map(b => b.text)),
   ].join(' ');
-
-  return detectDomain(allText);
 }
 
 /**
- * Find the best match for a requirement in the resume
- * Now with domain awareness to prevent cross-domain matching
+ * Get full text from JD for domain detection
+ */
+function getJDFullText(jd: JDRequirements): string {
+  return [
+    jd.title,
+    ...jd.required.map(r => r.text),
+    ...jd.preferred.map(r => r.text),
+    ...jd.keywords,
+  ].join(' ');
+}
+
+/**
+ * Find the best match for a requirement
  */
 function findBestMatch(
   requirement: Requirement,
   resume: ResumeData,
-  keywords: string[]
+  keywords: string[],
+  resumeDomains: string[],
+  jdDomains: string[]
 ): MatchResult {
   let bestMatch: MatchResult = {
     requirement,
@@ -166,36 +368,9 @@ function findBestMatch(
 
   const reqLower = requirement.text.toLowerCase();
 
-  // Detect requirement domain and resume domains
-  const reqDomains = detectDomain(requirement.text);
-  const resumeDomains = getResumeDomains(resume);
-
-  // If requirement is domain-specific and resume doesn't have that domain,
-  // cap the maximum score that can be achieved
-  const isDomainMismatch = reqDomains.length > 0 && !domainsOverlap(reqDomains, resumeDomains);
-  const maxScoreForMismatch = 30; // Domain mismatches can't score above 30
-
-  // Check if this is an experience years requirement
-  if (reqLower.includes('year') || reqLower.includes('experience')) {
-    let expScore = scoreExperienceYears(requirement.text, resume);
-    if (isDomainMismatch) expScore = Math.min(expScore, maxScoreForMismatch);
-
-    if (expScore > bestMatch.score) {
-      bestMatch = {
-        requirement,
-        matchedItem: null,
-        score: expScore,
-        matchType: getMatchType(expScore),
-        originalText: `${resume.experiences.length} positions spanning multiple years`,
-      };
-    }
-  }
-
-  // Check skills - only if domains overlap OR requirement isn't domain-specific
+  // 1. Check skills
   for (const skill of resume.skills) {
-    let score = scoreSkillMatch(requirement.text, skill.name);
-    if (isDomainMismatch) score = Math.min(score, maxScoreForMismatch);
-
+    const score = scoreSkillMatch(reqLower, skill.name.toLowerCase());
     if (score > bestMatch.score) {
       bestMatch = {
         requirement,
@@ -207,12 +382,10 @@ function findBestMatch(
     }
   }
 
-  // Check experience bullets
+  // 2. Check experience bullets
   for (const exp of resume.experiences) {
     for (const bullet of exp.bullets) {
-      let score = scoreBulletMatch(requirement.text, bullet, keywords);
-      if (isDomainMismatch) score = Math.min(score, maxScoreForMismatch);
-
+      const score = scoreBulletMatch(reqLower, bullet.text.toLowerCase(), keywords);
       if (score > bestMatch.score) {
         bestMatch = {
           requirement,
@@ -224,10 +397,8 @@ function findBestMatch(
       }
     }
 
-    // Also check job titles for experience/seniority requirements
-    let titleScore = scoreTitleMatch(requirement.text, exp.title);
-    if (isDomainMismatch) titleScore = Math.min(titleScore, maxScoreForMismatch);
-
+    // Also check job titles
+    const titleScore = scoreTitleMatch(reqLower, exp.title.toLowerCase());
     if (titleScore > bestMatch.score) {
       bestMatch = {
         requirement,
@@ -239,14 +410,23 @@ function findBestMatch(
     }
   }
 
-  // Check education
-  for (const edu of resume.education) {
-    let score = scoreEducationMatch(requirement.text, edu);
-    // Education is often cross-domain applicable, so don't cap as heavily
-    if (isDomainMismatch && !reqLower.includes('degree')) {
-      score = Math.min(score, maxScoreForMismatch);
+  // 3. Check for experience years
+  if (reqLower.includes('year') || reqLower.includes('experience')) {
+    const yearsScore = scoreExperienceYears(requirement.text, resume);
+    if (yearsScore > bestMatch.score) {
+      bestMatch = {
+        requirement,
+        matchedItem: null,
+        score: yearsScore,
+        matchType: getMatchType(yearsScore),
+        originalText: `${getTotalYears(resume)}+ years of experience`,
+      };
     }
+  }
 
+  // 4. Check education
+  for (const edu of resume.education) {
+    const score = scoreEducationMatch(reqLower, edu);
     if (score > bestMatch.score) {
       bestMatch = {
         requirement,
@@ -258,152 +438,190 @@ function findBestMatch(
     }
   }
 
-  // Also check against raw text for comprehensive matching
-  let rawTextScore = scoreRawTextMatch(requirement.text, resume.rawText, keywords);
-  if (isDomainMismatch) rawTextScore = Math.min(rawTextScore, maxScoreForMismatch);
-
-  if (rawTextScore > bestMatch.score) {
+  // 5. Raw text fallback for specific terms
+  const rawScore = scoreRawTextMatch(reqLower, resume.rawText.toLowerCase());
+  if (rawScore > bestMatch.score) {
     bestMatch = {
       requirement,
       matchedItem: null,
-      score: rawTextScore,
-      matchType: getMatchType(rawTextScore),
-      originalText: 'Found in resume content',
+      score: rawScore,
+      matchType: getMatchType(rawScore),
+      originalText: 'Found in resume',
     };
   }
 
   return bestMatch;
 }
 
-// Domain indicators to detect the type of experience required
-// IMPORTANT: Use specific multi-word phrases that are unique to each domain
-// Avoid single words that could appear in other contexts (e.g., "design" in "designed a system")
-const DOMAIN_INDICATORS = {
-  // Software/Engineering - use specific job titles and technical terms
-  software: ['software engineer', 'software developer', 'software development experience', 'programming language', 'computer science degree', 'cs degree'],
-  frontend: ['frontend developer', 'front-end developer', 'react developer', 'angular developer', 'vue developer', 'javascript developer', 'web developer'],
-  backend: ['backend developer', 'back-end developer', 'api development', 'server-side', 'microservices architecture'],
-  // Design - use UX/UI specific terms that wouldn't appear in software contexts
-  // Removed 'figma' alone since many engineers use it for design review
-  design: ['ux designer', 'ui designer', 'ux design experience', 'ui design experience', 'user experience designer', 'product designer', 'design experience', 'user research experience', 'usability testing', 'wireframes', 'prototypes', 'design portfolio', 'design skills', 'figma experience', 'sketch experience'],
-  // Marketing - use marketing-specific terms
-  marketing: ['marketing manager', 'marketing experience', 'marketing lead', 'demand generation', 'growth marketing', 'b2b marketing', 'marketing automation', 'hubspot', 'marketo', 'mql', 'marketing campaigns', 'content marketing'],
-  // Sales - use sales-specific terms that wouldn't be in other domains
-  sales: ['sales experience', 'sales manager', 'sales team', 'account executive', 'enterprise sales', 'quota attainment', 'sales pipeline', 'closed deals', 'revenue targets', 'b2b sales', 'saas sales'],
-  // Data - use data-specific terms
-  data: ['data scientist', 'data analyst', 'data engineer', 'machine learning engineer', 'data science experience', 'statistical analysis'],
-};
+// =============================================================================
+// SCORING FUNCTIONS
+// =============================================================================
 
 /**
- * Detect the domain of a requirement or resume
+ * Score skill match
  */
-function detectDomain(text: string): string[] {
-  const textLower = text.toLowerCase();
-  const detectedDomains: string[] = [];
+function scoreSkillMatch(requirement: string, skill: string): number {
+  // Direct match
+  if (requirement.includes(skill) || skill.includes(requirement)) {
+    return 95;
+  }
 
-  for (const [domain, indicators] of Object.entries(DOMAIN_INDICATORS)) {
-    if (indicators.some(ind => textLower.includes(ind))) {
-      detectedDomains.push(domain);
+  // Synonym match
+  for (const [canonical, synonyms] of Object.entries(SKILL_SYNONYMS)) {
+    const allTerms = [canonical.toLowerCase(), ...synonyms.map(s => s.toLowerCase())];
+
+    const reqMatch = allTerms.some(t => requirement.includes(t));
+    const skillMatch = allTerms.some(t => skill.includes(t));
+
+    if (reqMatch && skillMatch) {
+      return 90;
     }
   }
 
-  return detectedDomains;
+  // Partial word match
+  const reqWords = requirement.split(/\s+/).filter(w => w.length > 3);
+  const skillWords = skill.split(/\s+/).filter(w => w.length > 3);
+  const overlap = reqWords.filter(rw => skillWords.some(sw => sw.includes(rw) || rw.includes(sw)));
+
+  if (overlap.length > 0) {
+    return 60 + Math.min(overlap.length * 10, 25);
+  }
+
+  return 0;
 }
 
 /**
- * Check if resume domain matches requirement domain
+ * Score bullet match - the core matching logic
  */
-function domainsOverlap(reqDomains: string[], resumeDomains: string[]): boolean {
-  if (reqDomains.length === 0) return true; // Non-domain requirement matches all
-  if (resumeDomains.length === 0) return false;
+function scoreBulletMatch(requirement: string, bullet: string, keywords: string[]): number {
+  let score = 0;
 
-  // Check for any overlap
-  return reqDomains.some(rd => resumeDomains.includes(rd));
+  // 1. Check synonym groups (ALL of them, not just technical)
+  for (const [canonical, synonyms] of Object.entries(SKILL_SYNONYMS)) {
+    const allTerms = [canonical.toLowerCase(), ...synonyms.map(s => s.toLowerCase())];
+
+    const reqHasTerm = allTerms.some(t => requirement.includes(t));
+    const bulletHasTerm = allTerms.some(t => bullet.includes(t));
+
+    if (reqHasTerm && bulletHasTerm) {
+      score += 40; // Strong semantic match
+      break; // Only count once
+    }
+  }
+
+  // 2. Direct word overlap (excluding stopwords)
+  const stopwords = new Set(['the', 'and', 'with', 'for', 'that', 'this', 'from', 'have', 'been', 'were', 'was', 'are', 'our', 'your', 'will', 'can', 'ability', 'able', 'experience']);
+  const reqWords = requirement.split(/\s+/).filter(w => w.length > 3 && !stopwords.has(w));
+  const bulletWords = bullet.split(/\s+/).filter(w => w.length > 3);
+
+  const matchedWords = reqWords.filter(rw => 
+    bulletWords.some(bw => bw.includes(rw) || rw.includes(bw))
+  );
+
+  if (matchedWords.length >= 2) {
+    score += 25 + (matchedWords.length * 5);
+  } else if (matchedWords.length === 1) {
+    score += 15;
+  }
+
+  // 3. Keyword matches from JD
+  const keywordMatches = keywords.filter(k => 
+    k.length > 3 && bullet.includes(k.toLowerCase())
+  ).length;
+  score += Math.min(keywordMatches * 5, 15);
+
+  // 4. Metrics bonus (shows quantified impact)
+  if (/\$[\d,]+|\d+%|\d+x|\d+\s*(million|k\b|m\b)/i.test(bullet)) {
+    score += 10;
+  }
+
+  return Math.min(score, 95);
 }
 
 /**
- * Score experience years match - now domain-aware
+ * Score title match
+ */
+function scoreTitleMatch(requirement: string, title: string): number {
+  // Check for role matches
+  const roles = [
+    ['manager', 'lead', 'director', 'head'],
+    ['engineer', 'developer'],
+    ['analyst', 'specialist'],
+    ['designer'],
+    ['marketing', 'growth', 'demand gen'],
+    ['sales', 'account'],
+  ];
+
+  for (const roleGroup of roles) {
+    const reqHasRole = roleGroup.some(r => requirement.includes(r));
+    const titleHasRole = roleGroup.some(r => title.includes(r));
+    if (reqHasRole && titleHasRole) {
+      return 80;
+    }
+  }
+
+  // Seniority matches
+  if (requirement.includes('senior') && /senior|lead|director|head|principal/i.test(title)) {
+    return 75;
+  }
+
+  if (requirement.includes('experience') && /manager|lead|senior|director/i.test(title)) {
+    return 70;
+  }
+
+  return 0;
+}
+
+/**
+ * Score experience years
  */
 function scoreExperienceYears(requirement: string, resume: ResumeData): number {
   const reqLower = requirement.toLowerCase();
 
-  // Extract required years from requirement
-  let requiredYears = 0;
-  for (const { pattern, extract, years } of EXPERIENCE_PATTERNS) {
-    const match = reqLower.match(pattern);
-    if (match) {
-      requiredYears = extract ? extract(match) : years || 0;
-      break;
-    }
-  }
+  // Extract required years
+  const yearsMatch = reqLower.match(/(\d+)\+?\s*years?/i);
+  if (!yearsMatch) return 0;
 
-  if (requiredYears === 0) return 0;
+  const requiredYears = parseInt(yearsMatch[1]);
+  const actualYears = getTotalYears(resume);
 
-  // Detect what domain the requirement is asking for
-  const reqDomains = detectDomain(requirement);
+  if (actualYears >= requiredYears) return 90;
+  if (actualYears >= requiredYears * 0.8) return 75;
+  if (actualYears >= requiredYears * 0.6) return 60;
+  if (actualYears > 0) return 40;
 
-  // Calculate actual years from resume experiences IN THE RIGHT DOMAIN
-  let relevantYears = 0;
+  return 0;
+}
+
+/**
+ * Get total years of experience
+ */
+function getTotalYears(resume: ResumeData): number {
   let totalYears = 0;
   const currentYear = new Date().getFullYear();
 
   for (const exp of resume.experiences) {
-    const expYears = exp.dateRange
-      ? extractYearsFromDateRange(exp.dateRange, currentYear)
-      : 1;
-
-    totalYears += expYears;
-
-    // Check if this experience is in a relevant domain
-    const expText = `${exp.title} ${exp.company} ${exp.bullets.map(b => b.text).join(' ')}`;
-    const expDomains = detectDomain(expText);
-
-    if (reqDomains.length === 0 || domainsOverlap(reqDomains, expDomains)) {
-      relevantYears += expYears;
+    if (exp.dateRange) {
+      const years = extractYearsFromDateRange(exp.dateRange, currentYear);
+      totalYears += years;
+    } else {
+      totalYears += 1; // Assume at least 1 year
     }
   }
 
-  // If requirement has a specific domain but resume has no relevant experience, low score
-  if (reqDomains.length > 0 && relevantYears === 0) {
-    return 15; // Domain mismatch - very low score
-  }
-
-  // Also check for senior titles in relevant domain
-  const hasSeniorRelevantTitle = resume.experiences.some(e => {
-    const isRelevantDomain = reqDomains.length === 0 ||
-      domainsOverlap(reqDomains, detectDomain(`${e.title} ${e.company}`));
-    const isSenior = /senior|lead|principal|staff|manager|director/i.test(e.title);
-    return isRelevantDomain && isSenior;
-  });
-
-  if (hasSeniorRelevantTitle && relevantYears < 5) {
-    relevantYears = Math.max(relevantYears, 5);
-  }
-
-  // Score based on meeting the requirement WITH RELEVANT EXPERIENCE
-  if (relevantYears >= requiredYears) {
-    return 90; // Meets or exceeds requirement
-  } else if (relevantYears >= requiredYears * 0.8) {
-    return 70; // Close to requirement
-  } else if (relevantYears >= requiredYears * 0.6) {
-    return 50; // Partial match
-  } else if (relevantYears > 0) {
-    return 35; // Some relevant experience but not enough
-  }
-
-  return 15; // No relevant experience
+  return totalYears;
 }
 
 /**
- * Extract years from date range string
+ * Extract years from date range
  */
 function extractYearsFromDateRange(dateRange: string, currentYear: number): number {
-  const presentMatch = dateRange.match(/present|current|now/i);
+  const presentMatch = /present|current|now/i.test(dateRange);
   const yearsMatch = dateRange.match(/(\d{4})/g);
 
   if (yearsMatch && yearsMatch.length >= 1) {
     const startYear = parseInt(yearsMatch[0]);
-    const endYear = presentMatch ? currentYear : (yearsMatch[1] ? parseInt(yearsMatch[1]) : startYear);
+    const endYear = presentMatch ? currentYear : (yearsMatch[1] ? parseInt(yearsMatch[1]) : currentYear);
     return Math.max(1, endYear - startYear);
   }
 
@@ -411,179 +629,34 @@ function extractYearsFromDateRange(dateRange: string, currentYear: number): numb
 }
 
 /**
- * Score skill match with comprehensive synonym support
- */
-function scoreSkillMatch(requirement: string, skillName: string): number {
-  const reqLower = requirement.toLowerCase();
-  const skillLower = skillName.toLowerCase();
-
-  // Direct/exact match
-  if (reqLower.includes(skillLower) || skillLower.includes(reqLower)) {
-    return 100;
-  }
-
-  // Check all synonyms
-  for (const [canonical, synonyms] of Object.entries(SKILL_SYNONYMS)) {
-    const allTerms = [canonical, ...synonyms];
-
-    // Check if requirement contains any term
-    const reqHasTerm = allTerms.some((t) =>
-      reqLower.includes(t.toLowerCase()) ||
-      new RegExp(`\\b${escapeRegex(t)}\\b`, 'i').test(reqLower)
-    );
-
-    // Check if skill matches any term
-    const skillHasTerm = allTerms.some((t) =>
-      skillLower.includes(t.toLowerCase()) ||
-      new RegExp(`\\b${escapeRegex(t)}\\b`, 'i').test(skillLower)
-    );
-
-    if (reqHasTerm && skillHasTerm) {
-      return 90; // Synonym match
-    }
-  }
-
-  // Word overlap match
-  const reqWords = reqLower.split(/\s+/).filter(w => w.length > 2);
-  const skillWords = skillLower.split(/\s+/).filter(w => w.length > 2);
-  const overlap = reqWords.filter((w) => skillWords.some(sw => sw.includes(w) || w.includes(sw)));
-
-  if (overlap.length > 0) {
-    return 60 + Math.min(overlap.length * 15, 30);
-  }
-
-  return 0;
-}
-
-/**
- * Score bullet point match - more discriminating for domain-specific skills
- */
-function scoreBulletMatch(
-  requirement: string,
-  bullet: Bullet,
-  keywords: string[]
-): number {
-  const reqLower = requirement.toLowerCase();
-  const bulletLower = bullet.text.toLowerCase();
-  let score = 0;
-
-  // Filter out common stopwords that appear in every resume
-  const stopwords = ['the', 'and', 'with', 'for', 'that', 'this', 'from', 'have', 'been', 'were', 'was', 'are', 'team', 'work', 'working', 'using'];
-
-  // Check for direct requirement text in bullet
-  const reqWords = reqLower.split(/\s+/).filter((w) => w.length > 4 && !stopwords.includes(w));
-  const matchedWords = reqWords.filter((w) => bulletLower.includes(w));
-  const wordMatchRatio = matchedWords.length / Math.max(reqWords.length, 1);
-
-  // Only count if we match at least 2 significant words
-  if (matchedWords.length >= 2) {
-    score += wordMatchRatio * 50;
-  }
-
-  // Check for keyword matches (from JD) - but only significant ones
-  let keywordMatches = 0;
-  for (const keyword of keywords) {
-    if (keyword.length > 4 && bulletLower.includes(keyword.toLowerCase())) {
-      keywordMatches++;
-    }
-  }
-  score += Math.min(keywordMatches * 8, 24);
-
-  // Check synonym matches - but be more selective
-  // Only count technical/domain-specific synonyms, not generic soft skills
-  const technicalSynonymGroups = ['react', 'javascript', 'typescript', 'python', 'sql', 'aws', 'cloud', 'docker', 'api', 'database', 'frontend', 'backend', 'nodejs', 'machine learning', 'data science'];
-
-  for (const [canonical, synonyms] of Object.entries(SKILL_SYNONYMS)) {
-    // Only use this for technical skills, not soft skills like "leadership"
-    if (!technicalSynonymGroups.includes(canonical)) continue;
-
-    const allTerms = [canonical, ...synonyms];
-    const reqHasTerm = allTerms.some((t) => reqLower.includes(t.toLowerCase()));
-    const bulletHasTerm = allTerms.some((t) => bulletLower.includes(t.toLowerCase()));
-
-    if (reqHasTerm && bulletHasTerm) {
-      score += 30; // Technical synonym match
-      break;
-    }
-  }
-
-  // Bonus for metrics (shows impact) - reduced from 15
-  if (bullet.metrics.length > 0) {
-    score += 8;
-  }
-
-  return Math.min(score, 90); // Cap at 90, not 100
-}
-
-/**
- * Score job title match
- */
-function scoreTitleMatch(requirement: string, title: string): number {
-  const reqLower = requirement.toLowerCase();
-  const titleLower = title.toLowerCase();
-
-  // Check for seniority level matches
-  if (reqLower.includes('senior') && titleLower.includes('senior')) {
-    return 85;
-  }
-  if (reqLower.includes('lead') && (titleLower.includes('lead') || titleLower.includes('senior'))) {
-    return 80;
-  }
-  if (reqLower.includes('experience') && (titleLower.includes('senior') || titleLower.includes('lead'))) {
-    return 70;
-  }
-
-  // Check for role matches
-  const roles = ['engineer', 'developer', 'manager', 'analyst', 'designer', 'architect'];
-  for (const role of roles) {
-    if (reqLower.includes(role) && titleLower.includes(role)) {
-      return 75;
-    }
-  }
-
-  return 0;
-}
-
-/**
  * Score education match
  */
 function scoreEducationMatch(requirement: string, education: Education): number {
-  const reqLower = requirement.toLowerCase();
   const eduText = `${education.degree} ${education.institution}`.toLowerCase();
 
-  // Degree type match
+  // Degree type matches
   const degreeTypes = [
-    { names: ['bachelor', 'bs', 'ba', 'b.s.', 'b.a.'], level: 1 },
+    { names: ['bachelor', 'bs', 'ba', 'b.s.', 'b.a.', 'bcomm', 'b.comm'], level: 1 },
     { names: ['master', 'ms', 'ma', 'm.s.', 'm.a.', 'mba'], level: 2 },
-    { names: ['phd', 'ph.d.', 'doctorate', 'doctoral'], level: 3 },
+    { names: ['phd', 'ph.d.', 'doctorate'], level: 3 },
   ];
 
-  for (const { names, level } of degreeTypes) {
-    const reqHas = names.some((n) => reqLower.includes(n));
-    const eduHas = names.some((n) => eduText.includes(n));
-
-    if (reqHas && eduHas) {
-      return 95;
-    }
-
-    // Higher degree satisfies lower requirement
-    if (reqHas && degreeTypes.slice(level).some(higher =>
-      higher.names.some(n => eduText.includes(n))
-    )) {
-      return 90;
-    }
+  for (const { names } of degreeTypes) {
+    const reqHas = names.some(n => requirement.includes(n));
+    const eduHas = names.some(n => eduText.includes(n));
+    if (reqHas && eduHas) return 90;
   }
 
-  // Field of study match
-  const fields = ['computer science', 'engineering', 'business', 'marketing', 'design', 'mathematics', 'physics', 'information technology'];
+  // Field of study
+  const fields = ['marketing', 'business', 'commerce', 'computer science', 'engineering', 'design', 'communications'];
   for (const field of fields) {
-    if (reqLower.includes(field) && eduText.includes(field)) {
+    if (requirement.includes(field) && eduText.includes(field)) {
       return 85;
     }
   }
 
-  // Generic degree requirement match
-  if (reqLower.includes('degree') && education.degree) {
+  // Generic degree requirement
+  if (requirement.includes('degree') && education.degree) {
     return 70;
   }
 
@@ -591,34 +664,18 @@ function scoreEducationMatch(requirement: string, education: Education): number 
 }
 
 /**
- * Score against raw resume text for fallback matching
- * More conservative - only use for specific technical skills, not generic words
+ * Score raw text match (fallback)
  */
-function scoreRawTextMatch(requirement: string, rawText: string, keywords: string[]): number {
-  const reqLower = requirement.toLowerCase();
-  const textLower = rawText.toLowerCase();
+function scoreRawTextMatch(requirement: string, rawText: string): number {
+  // Check for specific term matches
+  for (const [canonical, synonyms] of Object.entries(SKILL_SYNONYMS)) {
+    const allTerms = [canonical.toLowerCase(), ...synonyms.map(s => s.toLowerCase())];
 
-  // Only use raw text matching for specific technical terms, not generic words
-  // This prevents marketing resumes from matching software requirements via shared words like "led", "team", etc.
-  const technicalTerms = [
-    'react', 'angular', 'vue', 'javascript', 'typescript', 'python', 'java', 'node',
-    'sql', 'database', 'api', 'aws', 'cloud', 'docker', 'kubernetes', 'git',
-    'html', 'css', 'frontend', 'backend', 'fullstack', 'machine learning', 'data science',
-    'figma', 'sketch', 'user research', 'wireframe', 'prototype', 'accessibility',
-    'salesforce', 'hubspot', 'marketo', 'seo', 'sem', 'ppc', 'analytics',
-    'saas', 'b2b', 'enterprise', 'revenue', 'pipeline', 'quota'
-  ];
+    const reqHasTerm = allTerms.some(t => requirement.includes(t));
+    const textHasTerm = allTerms.some(t => rawText.includes(t));
 
-  // Check if requirement contains a technical term
-  const reqHasTechnical = technicalTerms.some(term => reqLower.includes(term));
-  if (!reqHasTechnical) {
-    return 0; // Don't use raw text for non-technical requirements
-  }
-
-  // Check for technical term match in resume
-  for (const term of technicalTerms) {
-    if (reqLower.includes(term) && textLower.includes(term)) {
-      return 45; // Conservative score for raw text technical match
+    if (reqHasTerm && textHasTerm) {
+      return 60; // Found via synonym in raw text
     }
   }
 
@@ -626,50 +683,21 @@ function scoreRawTextMatch(requirement: string, rawText: string, keywords: strin
 }
 
 /**
- * Get match type based on score
+ * Get match type from score
  */
 function getMatchType(score: number): MatchResult['matchType'] {
-  if (score >= 90) return 'exact';
-  if (score >= 70) return 'semantic';
+  if (score >= 85) return 'exact';
+  if (score >= 60) return 'semantic';
   if (score >= 40) return 'partial';
   return 'missing';
 }
 
-/**
- * Identify technical/domain-specific requirements vs generic soft skills
- */
-function isTechnicalRequirement(reqText: string): boolean {
-  const technicalIndicators = [
-    // Software Development (general)
-    'software', 'development', 'engineering', 'programming', 'coding', 'developer', 'engineer',
-    'technical', 'computer science', 'software development',
-    // Programming & tech
-    'react', 'angular', 'vue', 'javascript', 'typescript', 'python', 'java', 'node', 'go', 'rust',
-    'sql', 'database', 'postgresql', 'mysql', 'mongodb', 'redis', 'api', 'rest', 'graphql',
-    'aws', 'cloud', 'azure', 'gcp', 'docker', 'kubernetes', 'devops', 'ci/cd',
-    'html', 'css', 'frontend', 'backend', 'fullstack', 'microservices', 'architecture',
-    'machine learning', 'data science', 'tensorflow', 'pytorch',
-    'data structures', 'algorithms', 'testing', 'jest', 'state management', 'redux',
-    // Design
-    'figma', 'sketch', 'adobe', 'user research', 'wireframe', 'prototype', 'accessibility', 'wcag',
-    'ux', 'ui design', 'design system', 'usability testing', 'information architecture',
-    'user-centered design', 'design process', 'design tools', 'portfolio',
-    // Marketing
-    'seo', 'sem', 'ppc', 'google ads', 'facebook ads', 'hubspot', 'marketo', 'salesforce marketing',
-    'content marketing', 'demand generation', 'abm', 'marketing automation', 'google analytics',
-    'b2b marketing', 'growth marketing', 'mql', 'marketing budget', 'marketing experience',
-    // Sales
-    'salesforce', 'crm', 'enterprise sales', 'quota', 'pipeline', 'revenue', 'b2b sales', 'saas sales',
-    'sales operations', 'account management', 'strategic accounts', 'channel partner',
-    'sales experience', 'sales team', 'enterprise software sales', 'fortune 500', 'arr',
-  ];
-  const reqLower = reqText.toLowerCase();
-  return technicalIndicators.some(term => reqLower.includes(term));
-}
+// =============================================================================
+// SCORE CALCULATION
+// =============================================================================
 
 /**
  * Calculate overall match score
- * More discriminating scoring to differentiate good matches from mismatches
  */
 export function calculateMatchScore(
   matched: MatchResult[],
@@ -677,104 +705,34 @@ export function calculateMatchScore(
   hasDomainMismatch: boolean = false
 ): number {
   const total = matched.length + missing.length;
-  if (total === 0) return 0;
+  if (total === 0) return 50; // Default if no requirements
 
-  // Weight by importance - but also consider if it's a technical requirement
-  const importanceWeight = { critical: 4, high: 2.5, medium: 1.5, low: 0.5 };
+  // Weight by importance
+  const weights = { critical: 3, high: 2, medium: 1.5, low: 0.5 };
 
-  let weightedMatched = 0;
+  let weightedScore = 0;
   let totalWeight = 0;
 
-  // Count domain-critical matches and misses
-  let technicalMatches = 0;
-  let technicalMisses = 0;
-  let totalTechnicalReqs = 0;
-
-  // Track critical requirement misses separately
-  let criticalMatches = 0;
-  let criticalMisses = 0;
-
+  // Score matched items
   for (const m of matched) {
-    const isTechnical = isTechnicalRequirement(m.requirement.text);
-    let weight = importanceWeight[m.requirement.importance];
-
-    // Technical requirements get extra weight
-    if (isTechnical) {
-      weight *= 1.5;
-      technicalMatches++;
-      totalTechnicalReqs++;
-    }
-
-    if (m.requirement.importance === 'critical') {
-      criticalMatches++;
-    }
-
-    const scoreContribution = (m.score / 100) * weight;
-    weightedMatched += scoreContribution;
+    const weight = weights[m.requirement.importance];
+    weightedScore += (m.score / 100) * weight;
     totalWeight += weight;
   }
 
+  // Penalize missing items (but not as harshly)
   for (const m of missing) {
-    const isTechnical = isTechnicalRequirement(m.requirement.text);
-    let weight = importanceWeight[m.requirement.importance];
-
-    // Technical requirements get extra weight (penalized more when missing)
-    if (isTechnical) {
-      weight *= 2.0; // Double penalty for missing technical skills
-      technicalMisses++;
-      totalTechnicalReqs++;
-    }
-
-    if (m.requirement.importance === 'critical') {
-      criticalMisses++;
-    }
-
+    const weight = weights[m.requirement.importance] * 0.7; // Reduced penalty
     totalWeight += weight;
   }
 
-  // Calculate base score
-  let score = Math.round((weightedMatched / totalWeight) * 100);
+  let score = Math.round((weightedScore / totalWeight) * 100);
 
-  // Heavy penalty for missing technical requirements
-  // This is the key to differentiating SWE from Marketing
-  if (totalTechnicalReqs > 0) {
-    const technicalMatchRate = technicalMatches / totalTechnicalReqs;
-    if (technicalMatchRate < 0.15) {
-      // Almost no technical matches - severe penalty (domain mismatch)
-      score = Math.round(score * 0.25);
-    } else if (technicalMatchRate < 0.3) {
-      // Very few technical matches - major penalty
-      score = Math.round(score * 0.4);
-    } else if (technicalMatchRate < 0.5) {
-      // Missing most technical skills - significant penalty
-      score = Math.round(score * 0.55);
-    } else if (technicalMatchRate < 0.7) {
-      // Missing many technical skills - moderate penalty
-      score = Math.round(score * 0.75);
-    }
-  }
-
-  // Additional severe penalty if missing critical requirements
-  const totalCritical = criticalMatches + criticalMisses;
-  if (totalCritical > 0 && criticalMisses > criticalMatches) {
-    // Missing more critical requirements than matching - severe penalty
-    score = Math.round(score * 0.6);
-  }
-
-  // Domain mismatch penalty - if the resume and JD are in completely different fields
+  // Domain mismatch penalty (but not too severe)
   if (hasDomainMismatch) {
-    // Even if some generic requirements match, cap the score for domain mismatches
-    score = Math.min(score, 45);
+    score = Math.round(score * 0.7);
   }
 
-  // Cap score at 95% (perfect scores are unrealistic)
-  // Minimum of 15% to give some feedback
-  return Math.min(Math.max(score, 15), 95);
-}
-
-/**
- * Escape special regex characters
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Ensure reasonable bounds
+  return Math.min(Math.max(score, 20), 95);
 }

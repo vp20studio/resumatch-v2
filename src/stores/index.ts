@@ -1,4 +1,13 @@
-export { useAuthStore, selectUser, selectIsAuthenticated, selectIsPremium } from './authStore';
+export {
+  useAuthStore,
+  selectUser,
+  selectSession,
+  selectProfile,
+  selectIsAuthenticated,
+  selectIsLoading,
+  selectError,
+  selectHasCompletedOnboarding,
+} from './authStore';
 export { useResumeStore, selectHasResume, selectResumeText, selectParsedResume } from './resumeStore';
 export {
   useGenerationStore,
