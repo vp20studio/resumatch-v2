@@ -1,146 +1,161 @@
-import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Text, Button, Card } from '../../src/components/ui';
 import { colors, spacing, borderRadius } from '../../src/theme';
-import { useAuthStore, useResumeStore, useApplicationsStore } from '../../src/stores';
+import { useAuthStore, useResumeStore, useHistoryStore } from '../../src/stores';
+import { formatRelativeDate } from '../../src/utils/formatDate';
 
 export default function ProfileScreen() {
-  const user = useAuthStore((state) => state.user);
-  const isPremium = useAuthStore((state) => state.user?.isPremium);
-  const logout = useAuthStore((state) => state.logout);
+  const setOnboardingComplete = useAuthStore((state) => state.setOnboardingComplete);
 
   const resumeText = useResumeStore((state) => state.rawText);
+  const parsedData = useResumeStore((state) => state.parsedData);
   const lastUpdated = useResumeStore((state) => state.lastUpdated);
   const clearResume = useResumeStore((state) => state.clearResume);
 
-  const applicationCount = useApplicationsStore((state) => state.applications.length);
+  const historyCount = useHistoryStore((state) => state.items.length);
+  const clearHistory = useHistoryStore((state) => state.clearHistory);
 
-  const handleUpdateResume = () => {
-    clearResume();
-    router.push('/(onboarding)/upload');
+  const hasResume = resumeText.length > 0;
+
+  const handleEditResume = () => {
+    router.push('/(modals)/edit-resume');
+  };
+
+  const handleClearHistory = () => {
+    Alert.alert(
+      'Clear History',
+      'Are you sure you want to delete all your generation history? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear', style: 'destructive', onPress: clearHistory },
+      ]
+    );
+  };
+
+  const handleResetApp = () => {
+    Alert.alert(
+      'Reset App',
+      'This will delete all your data including your resume and history. You will need to set up the app again. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => {
+            // Clear all data
+            clearResume();
+            clearHistory();
+            setOnboardingComplete(false);
+            // Navigate back to onboarding
+            router.replace('/(onboarding)/welcome');
+          },
+        },
+      ]
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Text variant="displayLarge">👤</Text>
-          </View>
-          <Text variant="h1" align="center">
-            {user?.name || 'User'}
-          </Text>
-          <Text variant="body" color="secondary" align="center">
-            {user?.email || 'user@example.com'}
-          </Text>
+          <Text variant="h1">Profile</Text>
         </View>
 
-        {!isPremium && (
-          <Card variant="filled" padding={4} style={styles.upgradeCard}>
-            <Text variant="h3">Upgrade to Pro</Text>
-            <Text variant="bodySmall" color="secondary">
-              Unlimited resumes, cover letters, and more
-            </Text>
-            <Button
-              size="sm"
-              onPress={() => router.push('/(modals)/paywall')}
-              style={styles.upgradeButton}
-            >
-              View Plans
-            </Button>
-          </Card>
-        )}
-
+        {/* Resume Section */}
         <View style={styles.section}>
           <Text variant="label" color="secondary">Your Resume</Text>
           <Card variant="outlined" padding={4}>
-            <View style={styles.resumeInfo}>
-              <View>
-                <Text variant="body">
-                  {resumeText ? 'Resume uploaded' : 'No resume'}
-                </Text>
+            {hasResume ? (
+              <View style={styles.resumeContent}>
+                <View style={styles.resumeStats}>
+                  <View style={styles.stat}>
+                    <Text variant="h2" color={colors.primary[600]}>
+                      {parsedData?.skills.length ?? 0}
+                    </Text>
+                    <Text variant="caption" color="secondary">Skills</Text>
+                  </View>
+                  <View style={styles.stat}>
+                    <Text variant="h2" color={colors.primary[600]}>
+                      {parsedData?.experiences.length ?? 0}
+                    </Text>
+                    <Text variant="caption" color="secondary">Experiences</Text>
+                  </View>
+                  <View style={styles.stat}>
+                    <Text variant="h2" color={colors.primary[600]}>
+                      {parsedData?.education.length ?? 0}
+                    </Text>
+                    <Text variant="caption" color="secondary">Education</Text>
+                  </View>
+                </View>
                 {lastUpdated && (
                   <Text variant="caption" color="tertiary">
-                    Updated {formatDate(lastUpdated)}
+                    Last updated {formatRelativeDate(lastUpdated)}
                   </Text>
                 )}
+                <Button variant="outline" size="sm" onPress={handleEditResume}>
+                  Edit Resume
+                </Button>
               </View>
-              <Button variant="outline" size="sm" onPress={handleUpdateResume}>
-                {resumeText ? 'Update' : 'Upload'}
-              </Button>
+            ) : (
+              <View style={styles.noResumeContent}>
+                <Text variant="body" color="secondary" align="center">
+                  No resume uploaded
+                </Text>
+                <Button variant="primary" size="sm" onPress={handleEditResume}>
+                  Add Resume
+                </Button>
+              </View>
+            )}
+          </Card>
+        </View>
+
+        {/* Settings Section */}
+        <View style={styles.section}>
+          <Text variant="label" color="secondary">Settings</Text>
+          <Card variant="outlined" padding={0}>
+            <TouchableOpacity
+              style={styles.settingsItem}
+              activeOpacity={0.7}
+              onPress={handleClearHistory}
+            >
+              <View>
+                <Text variant="body">Clear History</Text>
+                <Text variant="caption" color="tertiary">
+                  {historyCount} generation{historyCount !== 1 ? 's' : ''} saved
+                </Text>
+              </View>
+              <Text variant="body" color={colors.error.main}>Clear</Text>
+            </TouchableOpacity>
+
+            <View style={[styles.settingsItem, styles.settingsItemLast]}>
+              <Text variant="body">App Version</Text>
+              <Text variant="body" color="tertiary">2.0.0</Text>
             </View>
           </Card>
         </View>
 
+        {/* Danger Zone */}
         <View style={styles.section}>
-          <Text variant="label" color="secondary">Stats</Text>
-          <View style={styles.statsRow}>
-            <StatCard label="Applications" value={applicationCount} />
-            <StatCard
-              label="Plan"
-              value={isPremium ? 'Pro' : 'Free'}
-              valueColor={isPremium ? colors.primary[600] : undefined}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text variant="label" color="secondary">Settings</Text>
-          <Card variant="outlined" padding={0}>
-            <SettingsItem label="Notifications" value="On" />
-            <SettingsItem label="Theme" value="System" />
-            <SettingsItem label="Version" value="2.0.0" />
+          <Text variant="label" color="secondary">Danger Zone</Text>
+          <Card variant="outlined" padding={4} style={styles.dangerCard}>
+            <Text variant="body">Reset App</Text>
+            <Text variant="caption" color="secondary">
+              Delete all data and start fresh
+            </Text>
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={handleResetApp}
+              style={styles.dangerButton}
+            >
+              Reset Everything
+            </Button>
           </Card>
         </View>
-
-        <Button variant="ghost" onPress={logout} style={styles.logoutButton}>
-          Log Out
-        </Button>
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-function StatCard({
-  label,
-  value,
-  valueColor,
-}: {
-  label: string;
-  value: string | number;
-  valueColor?: string;
-}) {
-  return (
-    <Card variant="elevated" padding={4} style={styles.statCard}>
-      <Text
-        variant="h2"
-        color={valueColor || colors.text.primary}
-        align="center"
-      >
-        {value}
-      </Text>
-      <Text variant="caption" color="secondary" align="center">
-        {label}
-      </Text>
-    </Card>
-  );
-}
-
-function SettingsItem({ label, value }: { label: string; value: string }) {
-  return (
-    <TouchableOpacity style={styles.settingsItem} activeOpacity={0.7}>
-      <Text variant="body">{label}</Text>
-      <Text variant="body" color="tertiary">{value}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 const styles = StyleSheet.create({
@@ -153,41 +168,25 @@ const styles = StyleSheet.create({
     gap: spacing[6],
   },
   header: {
-    alignItems: 'center',
     gap: spacing[2],
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.background.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing[2],
-  },
-  upgradeCard: {
-    backgroundColor: colors.primary[50],
-    gap: spacing[2],
-  },
-  upgradeButton: {
-    alignSelf: 'flex-start',
-    marginTop: spacing[2],
   },
   section: {
     gap: spacing[3],
   },
-  resumeInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statsRow: {
-    flexDirection: 'row',
+  resumeContent: {
     gap: spacing[3],
   },
-  statCard: {
-    flex: 1,
-    gap: spacing[1],
+  resumeStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  stat: {
+    alignItems: 'center',
+  },
+  noResumeContent: {
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingVertical: spacing[2],
   },
   settingsItem: {
     flexDirection: 'row',
@@ -197,7 +196,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
   },
-  logoutButton: {
-    marginTop: spacing[4],
+  settingsItemLast: {
+    borderBottomWidth: 0,
+  },
+  dangerCard: {
+    gap: spacing[2],
+    borderColor: colors.error.main + '40',
+  },
+  dangerButton: {
+    alignSelf: 'flex-start',
+    marginTop: spacing[1],
+    borderColor: colors.error.main,
   },
 });

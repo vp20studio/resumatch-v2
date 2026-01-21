@@ -22,6 +22,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="tracker"
+        options={{
+          title: 'Tracker',
+          tabBarIcon: ({ color }) => <TabIcon emoji="🎯" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="history"
         options={{
           title: 'History',

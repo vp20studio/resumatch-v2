@@ -81,10 +81,17 @@ export interface JDContext {
 // Matching results
 export interface MatchResult {
   requirement: Requirement;
-  matchedItem: Bullet | Skill | Education | null;
+  matchedItem: Bullet | Skill | Education | Experience | null;
   score: number; // 0-100
   matchType: 'exact' | 'semantic' | 'partial' | 'missing';
   originalText: string;
+}
+
+// AI Detection result
+export interface AIDetectionInfo {
+  score: number; // 0-100 (percentage AI-generated)
+  isHumanPassing: boolean; // true if score < 50
+  feedback: string;
 }
 
 // Final tailoring output
@@ -95,6 +102,8 @@ export interface TailoringResult {
   matchedItems: MatchResult[];
   missingItems: MatchResult[];
   processingTime: number;
+  // AI Detection (optional - only present if detection was run)
+  aiDetection?: AIDetectionInfo;
 }
 
 export interface TailoredResume {

@@ -4,6 +4,7 @@
  */
 
 import OpenAI from 'openai';
+import { OPENAI_API_KEY } from '../../config/env';
 
 // Types
 export interface OpenAICallOptions {
@@ -52,12 +53,20 @@ export function initializeOpenAI(apiKey: string): void {
 }
 
 /**
+ * Ensure the client is initialized (auto-initialize with embedded key)
+ */
+function ensureInitialized(): void {
+  if (!openaiClient) {
+    initializeOpenAI(OPENAI_API_KEY);
+  }
+}
+
+/**
  * Main function to call OpenAI
  */
 export async function callOpenAI(options: OpenAICallOptions): Promise<string> {
-  if (!openaiClient) {
-    throw new AIError('api_error', 'OpenAI client not initialized. Call initializeOpenAI first.');
-  }
+  // Auto-initialize if not already initialized
+  ensureInitialized();
 
   const {
     prompt,
@@ -72,7 +81,7 @@ export async function callOpenAI(options: OpenAICallOptions): Promise<string> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const response = await callWithTimeout(
-        openaiClient.chat.completions.create({
+        openaiClient!.chat.completions.create({
           model,
           messages: [{ role: 'user', content: prompt }],
           max_tokens: maxTokens,

@@ -7,3 +7,5 @@ export { ProgressRing } from './ProgressRing';
 export { MatchItem } from './MatchItem';
 export { MissingItem } from './MissingItem';
 export { StepIndicator } from './StepIndicator';
+export { LoadingOverlay } from './LoadingOverlay';
+export { Toast } from './Toast';

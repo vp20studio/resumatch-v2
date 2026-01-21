@@ -29,13 +29,40 @@ CRITICAL RULES:
 
 Return ONLY the cover letter text, no JSON or formatting instructions.`;
 
+const HUMAN_WRITING_INSTRUCTIONS = `
+CRITICAL - Write like a REAL PERSON, not AI:
+
+VOICE & TONE:
+- Conversational but professional - write like you're emailing a respected colleague
+- Confident without being arrogant
+- Genuine interest, not manufactured enthusiasm
+- Specific and concrete, not vague platitudes
+
+LANGUAGE RULES:
+- Use contractions naturally (I'm, I've, I'd, don't, can't)
+- AVOID these AI cliches: "passionate about", "leverage", "synergy", "excited to", "unique opportunity", "delighted", "thrilled", "cutting-edge", "spearhead"
+- Mix sentence lengths - some short, some longer
+- Start occasional sentences with "And" or "But"
+- Use specific examples and numbers, not generalities
+- Use active voice, first person
+
+STRUCTURE:
+- Don't follow a rigid template - vary your approach
+- Get to the point quickly - no filler
+- End with a simple, direct close - not an overeager plea
+
+Remember: Sound like a confident professional, not a robot trying to impress.`;
+
+
 /**
  * Generate cover letter based on matched items
+ * @param humanize When true, adds extra instructions to sound more human-like
  */
 export async function generateCoverLetter(
   matched: MatchResult[],
   jd: JDRequirements,
-  resume: ResumeData
+  resume: ResumeData,
+  humanize: boolean = false
 ): Promise<string> {
   // Get top matched items for the letter
   const topMatches = matched
@@ -48,12 +75,17 @@ export async function generateCoverLetter(
     topMatches.push(...getGeneralExperience(resume).slice(0, 3));
   }
 
-  const prompt = COVER_LETTER_PROMPT
+  let prompt = COVER_LETTER_PROMPT
     .replace('{JOB_TITLE}', jd.title)
     .replace('{COMPANY}', jd.company || 'the company')
     .replace('{INDUSTRY}', jd.context.industry || 'this industry')
     .replace('{MATCHED_ITEMS}', topMatches.join('\n'))
     .replace('{NAME}', resume.contact?.name || 'the candidate');
+
+  // Add human writing instructions if humanize is true
+  if (humanize) {
+    prompt = HUMAN_WRITING_INSTRUCTIONS + '\n\n' + prompt;
+  }
 
   const response = await callOpenAI({
     prompt,
@@ -126,6 +158,7 @@ function validateCoverLetter(letter: string, matched: MatchResult[]): string {
 
 /**
  * Quick cover letter template (no LLM, for offline/fast mode)
+ * Generates 150-300 word cover letter
  */
 export function generateQuickCoverLetter(
   matched: MatchResult[],
@@ -138,24 +171,34 @@ export function generateQuickCoverLetter(
 
   const topMatch = matched[0];
   const secondMatch = matched[1];
+  const thirdMatch = matched[2];
 
+  // Build paragraphs based on matched items
   const para1 = topMatch
-    ? `My experience ${topMatch.originalText.toLowerCase().startsWith('led') ? '' : 'in '}${topMatch.originalText.slice(0, 100)} aligns directly with your need for ${topMatch.requirement.text}.`
-    : 'My background in software development has prepared me well for this role.';
+    ? `My experience ${topMatch.originalText.toLowerCase().startsWith('led') ? '' : 'in '}${topMatch.originalText.slice(0, 120)} directly addresses your need for ${topMatch.requirement.text}. This hands-on experience has given me deep expertise in the areas that matter most for this role.`
+    : 'My professional background has prepared me well for the challenges and opportunities this role presents. I have consistently delivered results in similar positions and am confident I can bring that same level of performance to your team.';
 
   const para2 = secondMatch
-    ? `Additionally, I bring ${secondMatch.originalText.slice(0, 80)}, which supports your requirement for ${secondMatch.requirement.text}.`
-    : '';
+    ? `Beyond that, I bring ${secondMatch.originalText.slice(0, 100)}, which supports your requirement for ${secondMatch.requirement.text}. I've found that this combination of skills enables me to make meaningful contributions from day one while continuing to grow in the role.`
+    : 'Throughout my career, I have developed strong skills in collaboration, problem-solving, and delivering high-quality work under tight deadlines. I pride myself on being both a self-starter and a team player who thrives in fast-paced environments.';
+
+  const para3 = thirdMatch
+    ? `I'm also proud of my track record with ${thirdMatch.originalText.slice(0, 80)}, demonstrating my ability to ${thirdMatch.requirement.text.toLowerCase().slice(0, 50)}.`
+    : 'I am particularly drawn to this opportunity because of the chance to work with a talented team and contribute to meaningful projects.';
 
   return `Dear Hiring Manager,
 
-I am writing to express my interest in the ${title} position at ${company}. ${para1}
+I am writing to express my strong interest in the ${title} position at ${company}. After reviewing the job description, I believe my background and skills make me an excellent candidate for this opportunity.
+
+${para1}
 
 ${para2}
 
-I am excited about the opportunity to contribute to your team and would welcome the chance to discuss how my skills and experience align with your needs.
+${para3}
 
-Thank you for considering my application.
+I would welcome the opportunity to discuss how my experience and enthusiasm can contribute to ${company}'s continued success. I'm excited about the possibility of bringing my skills to your team and am confident that I would be a valuable addition.
+
+Thank you for considering my application. I look forward to the opportunity to speak with you further about how I can contribute to your organization.
 
 Sincerely,
 ${name}`;

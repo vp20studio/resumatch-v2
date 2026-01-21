@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,19 +9,17 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import {
   Text,
   Button,
   Card,
-  ScoreGauge,
   ProgressRing,
-  MatchItem,
-  MissingItem,
 } from '../../src/components/ui';
 import { colors, spacing, borderRadius, textStyles } from '../../src/theme';
-import { useGenerationStore, useResumeStore, useApplicationsStore } from '../../src/stores';
+import { useGenerationStore, useResumeStore, useHistoryStore, useGoalsStore } from '../../src/stores';
 import { tailorResume } from '../../src/services/tailoring';
-import { initializeOpenAI } from '../../src/services/ai/client';
 
 export default function GenerateScreen() {
   const [jdText, setJdText] = useState('');
@@ -29,7 +27,6 @@ export default function GenerateScreen() {
   const {
     status,
     progress,
-    result,
     error,
     startGeneration,
     setProgress,
@@ -39,13 +36,75 @@ export default function GenerateScreen() {
   } = useGenerationStore();
 
   const resumeText = useResumeStore((state) => state.rawText);
-  const addApplication = useApplicationsStore((state) => state.addApplication);
+  const parsedData = useResumeStore((state) => state.parsedData);
+  const addHistoryItem = useHistoryStore((state) => state.addItem);
+
+  // Goals/Gamification state - select raw values to avoid infinite loops
+  const currentStreak = useGoalsStore((state) => state.currentStreak);
+  const startDate = useGoalsStore((state) => state.startDate);
+  const targetDays = useGoalsStore((state) => state.targetDays);
+  const weeklyTarget = useGoalsStore((state) => state.weeklyTarget);
+  const weeklyApplications = useGoalsStore((state) => state.weeklyApplications);
+  const weekStartDate = useGoalsStore((state) => state.weekStartDate);
+
+  const hasGoals = startDate !== null;
+
+  // Compute derived values with useMemo
+  const weeklyProgress = useMemo(() => {
+    const now = new Date();
+    const currentWeekStart = new Date(now);
+    const day = currentWeekStart.getDay();
+    currentWeekStart.setDate(currentWeekStart.getDate() - day);
+    currentWeekStart.setHours(0, 0, 0, 0);
+
+    const storedWeekStart = weekStartDate ? new Date(weekStartDate) : null;
+    let current = weeklyApplications;
+    if (!storedWeekStart || currentWeekStart > storedWeekStart) {
+      current = 0;
+    }
+    return {
+      current,
+      target: weeklyTarget,
+      percentage: Math.min(100, Math.round((current / weeklyTarget) * 100)),
+    };
+  }, [weeklyApplications, weekStartDate, weeklyTarget]);
+
+  const daysRemaining = useMemo(() => {
+    if (!startDate) return targetDays;
+    const start = new Date(startDate);
+    const now = new Date();
+    const elapsed = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, targetDays - elapsed);
+  }, [startDate, targetDays]);
+
+  const motivationalMessage = useMemo(() => {
+    const remaining = weeklyProgress.target - weeklyProgress.current;
+    if (currentStreak >= 7) return "You're unstoppable! 🔥";
+    if (currentStreak >= 5) return "You're on fire! Keep it up! 🔥";
+    if (currentStreak >= 3) return "Nice streak! Keep the momentum! 💪";
+    if (weeklyProgress.current >= weeklyProgress.target) return "Weekly goal crushed! You're amazing! 🎉";
+    if (weeklyProgress.percentage >= 80) return `Almost there! Just ${remaining} more to go! 🏁`;
+    if (weeklyProgress.percentage >= 50) return "Halfway there! You've got this! 💪";
+    if (weeklyProgress.current === 0) return "Your first application is the hardest. Let's go! 🚀";
+    return `${remaining} more this week to hit your goal! 📈`;
+  }, [currentStreak, weeklyProgress]);
+
+  const hasResume = resumeText.length > 0;
+  const canGenerate = hasResume && jdText.trim().length >= 50;
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (text) {
+        setJdText(text);
+      }
+    } catch (err) {
+      console.error('Failed to paste from clipboard:', err);
+    }
+  };
 
   const handleGenerate = async () => {
-    if (!jdText.trim() || !resumeText) return;
-
-    // Initialize OpenAI (in production, get key from env/secure storage)
-    // initializeOpenAI(process.env.OPENAI_API_KEY);
+    if (!canGenerate) return;
 
     startGeneration();
 
@@ -55,29 +114,83 @@ export default function GenerateScreen() {
       });
 
       setResult(tailoringResult);
+
+      // Success haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Extract job title and company from the job description (first lines usually)
+      const jdLines = jdText.trim().split('\n').filter(line => line.trim());
+      const jobTitle = jdLines[0]?.substring(0, 50) || 'Position';
+      const company = jdLines[1]?.substring(0, 50) || 'Company';
+
+      // Save to history
+      addHistoryItem({
+        jobTitle,
+        company,
+        matchScore: tailoringResult.matchScore,
+        result: tailoringResult,
+        jobDescription: jdText,
+      });
+
+      // Navigate to result modal
+      router.push('/(modals)/result');
     } catch (err) {
+      // Error haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError((err as Error).message);
     }
   };
 
-  const handleSave = () => {
-    if (!result) return;
+  // Resume summary section
+  const renderResumeSummary = () => {
+    if (!hasResume) {
+      return (
+        <Card variant="outlined" padding={4}>
+          <View style={styles.noResumeContent}>
+            <Text variant="body" color="secondary" align="center">
+              No resume uploaded yet
+            </Text>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => router.push('/(tabs)/profile')}
+            >
+              Add Resume
+            </Button>
+          </View>
+        </Card>
+      );
+    }
 
-    addApplication({
-      jobTitle: result.matchedItems[0]?.requirement.text || 'Position',
-      company: 'Company', // Would extract from JD
-      matchScore: result.matchScore,
-      tailoredResume: result.resume.rawText,
-      coverLetter: result.coverLetter,
-      jobDescription: jdText,
-    });
+    const skillCount = parsedData?.skills.length ?? 0;
+    const expCount = parsedData?.experiences.length ?? 0;
 
-    reset();
-    setJdText('');
-    router.push('/(tabs)/history');
+    return (
+      <Card variant="filled" padding={4}>
+        <View style={styles.resumeSummary}>
+          <View style={styles.resumeStats}>
+            <View style={styles.stat}>
+              <Text variant="h2" color={colors.primary[600]}>{skillCount}</Text>
+              <Text variant="caption" color="secondary">Skills</Text>
+            </View>
+            <View style={styles.stat}>
+              <Text variant="h2" color={colors.primary[600]}>{expCount}</Text>
+              <Text variant="caption" color="secondary">Experiences</Text>
+            </View>
+          </View>
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            Edit Resume
+          </Button>
+        </View>
+      </Card>
+    );
   };
 
-  // Render based on status
+  // Render generating state
   if (status === 'generating') {
     return (
       <SafeAreaView style={styles.container}>
@@ -91,70 +204,18 @@ export default function GenerateScreen() {
             Tailoring Your Resume
           </Text>
           <Text variant="body" color="secondary" align="center">
-            This usually takes 5-8 seconds
+            {progress?.step === 'analyzing' && 'Analyzing job requirements...'}
+            {progress?.step === 'matching' && 'Matching your experience...'}
+            {progress?.step === 'formatting' && 'Formatting your resume...'}
+            {progress?.step === 'cover_letter' && 'Writing cover letter...'}
+            {!progress?.step && 'This usually takes 5-8 seconds'}
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (status === 'success' && result) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.resultHeader}>
-            <ScoreGauge score={result.matchScore} />
-            <Text variant="body" color="secondary" align="center">
-              Processed in {(result.processingTime / 1000).toFixed(1)}s
-            </Text>
-          </View>
-
-          <Card variant="outlined" padding={4}>
-            <Text variant="h3">Matched Qualifications</Text>
-            <View style={styles.matchList}>
-              {result.matchedItems.slice(0, 5).map((match, i) => (
-                <MatchItem
-                  key={i}
-                  requirement={match.requirement.text}
-                  matchedContent={match.originalText}
-                  score={match.score}
-                />
-              ))}
-            </View>
-          </Card>
-
-          {result.missingItems.length > 0 && (
-            <Card variant="outlined" padding={4}>
-              <Text variant="h3">Gaps to Address</Text>
-              <View style={styles.matchList}>
-                {result.missingItems.slice(0, 3).map((missing, i) => (
-                  <MissingItem
-                    key={i}
-                    requirement={missing.requirement.text}
-                    isRequired={missing.requirement.importance === 'critical'}
-                  />
-                ))}
-              </View>
-            </Card>
-          )}
-
-          <View style={styles.actions}>
-            <Button variant="outline" onPress={() => router.push('/(modals)/preview')}>
-              Preview Resume
-            </Button>
-            <Button onPress={handleSave}>
-              Save Application
-            </Button>
-          </View>
-
-          <Button variant="ghost" onPress={reset}>
-            Start Over
-          </Button>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
+  // Render error state
   if (status === 'error') {
     return (
       <SafeAreaView style={styles.container}>
@@ -176,16 +237,64 @@ export default function GenerateScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.header}>
             <Text variant="h1">Tailor Resume</Text>
             <Text variant="body" color="secondary">
-              Paste the job description below to optimize your resume
+              Paste a job description to optimize your resume
             </Text>
           </View>
 
-          <View style={styles.inputSection}>
-            <Text variant="label">Job Description</Text>
+          {/* Gamification Progress Card */}
+          {hasGoals && (
+            <Card variant="filled" padding={4} style={styles.progressCard}>
+              <View style={styles.progressStats}>
+                <View style={styles.progressStat}>
+                  <Text variant="h2" color={colors.primary[600]}>
+                    {weeklyProgress.current}/{weeklyProgress.target}
+                  </Text>
+                  <Text variant="caption" color="secondary">This Week</Text>
+                </View>
+                {currentStreak > 0 && (
+                  <View style={styles.progressStat}>
+                    <Text variant="h2" color={colors.warning.main}>
+                      {currentStreak}
+                    </Text>
+                    <Text variant="caption" color="secondary">Day Streak</Text>
+                  </View>
+                )}
+                <View style={styles.progressStat}>
+                  <Text variant="h2" color={colors.accent[500]}>
+                    {daysRemaining}
+                  </Text>
+                  <Text variant="caption" color="secondary">Days Left</Text>
+                </View>
+              </View>
+              <Text variant="body" align="center" style={styles.motivationText}>
+                {motivationalMessage}
+              </Text>
+            </Card>
+          )}
+
+          <View style={styles.section}>
+            <Text variant="label">Your Resume</Text>
+            {renderResumeSummary()}
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text variant="label">Job Description</Text>
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={handlePasteFromClipboard}
+              >
+                Paste from Clipboard
+              </Button>
+            </View>
             <TextInput
               style={styles.textArea}
               multiline
@@ -195,11 +304,16 @@ export default function GenerateScreen() {
               onChangeText={setJdText}
               textAlignVertical="top"
             />
+            {jdText.length > 0 && jdText.length < 50 && (
+              <Text variant="caption" color={colors.warning.main}>
+                Job description should be at least 50 characters
+              </Text>
+            )}
           </View>
 
           <Button
             fullWidth
-            disabled={jdText.trim().length < 50}
+            disabled={!canGenerate}
             onPress={handleGenerate}
           >
             Generate Tailored Resume
@@ -225,8 +339,30 @@ const styles = StyleSheet.create({
   header: {
     gap: spacing[2],
   },
-  inputSection: {
+  section: {
     gap: spacing[2],
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  noResumeContent: {
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  resumeSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  resumeStats: {
+    flexDirection: 'row',
+    gap: spacing[6],
+  },
+  stat: {
+    alignItems: 'center',
   },
   textArea: {
     ...textStyles.body,
@@ -240,24 +376,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing[6],
+    gap: spacing[4],
     padding: spacing[6],
   },
   generatingTitle: {
     marginTop: spacing[4],
-  },
-  resultHeader: {
-    alignItems: 'center',
-    gap: spacing[3],
-    marginBottom: spacing[4],
-  },
-  matchList: {
-    gap: spacing[3],
-    marginTop: spacing[3],
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing[3],
   },
   errorContainer: {
     flex: 1,
@@ -265,5 +388,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing[4],
     padding: spacing[6],
+  },
+  progressCard: {
+    gap: spacing[3],
+  },
+  progressStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  progressStat: {
+    alignItems: 'center',
+    gap: spacing[1],
+  },
+  motivationText: {
+    marginTop: spacing[2],
   },
 });

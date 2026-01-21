@@ -10,6 +10,8 @@ export default function ModalsLayout() {
     >
       <Stack.Screen name="paywall" />
       <Stack.Screen name="preview" />
+      <Stack.Screen name="result" />
+      <Stack.Screen name="edit-resume" />
     </Stack>
   );
 }

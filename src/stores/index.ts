@@ -14,3 +14,23 @@ export {
   selectRecentApplications,
   selectApplicationsByStatus,
 } from './applicationsStore';
+export {
+  useHistoryStore,
+  selectHistoryItems,
+  selectHistoryCount,
+  selectRecentHistory,
+  selectAppliedCount,
+  selectActiveApplications,
+  selectThisWeekApplications,
+  type HistoryItem,
+  type ApplicationStatus,
+} from './historyStore';
+export {
+  useGoalsStore,
+  selectStreak,
+  selectHasSetGoals,
+  selectWeeklyTarget,
+  selectWeeklyApplications,
+  selectTargetDays,
+  selectStartDate,
+} from './goalsStore';

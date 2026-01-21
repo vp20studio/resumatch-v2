@@ -17,9 +17,10 @@ import {
 const SECTION_PATTERNS = {
   experience: /^(experience|work\s*experience|professional\s*experience|employment)/i,
   education: /^(education|academic|qualifications)/i,
-  skills: /^(skills|technical\s*skills|core\s*competencies|technologies)/i,
-  summary: /^(summary|profile|objective|about)/i,
-  projects: /^(projects|personal\s*projects|portfolio)/i,
+  skills: /^(skills|technical\s*skills|core\s*competencies|technologies|expertise|ux\s*design\s*skills|design\s*skills|marketing\s*skills|sales\s*skills|skills\s*&\s*expertise)/i,
+  summary: /^(summary|profile|objective|about|executive\s*summary|professional\s*summary)/i,
+  projects: /^(projects|personal\s*projects|portfolio|portfolio\s*projects)/i,
+  activities: /^(activities|certifications|awards|achievements)/i,
 };
 
 // Metric patterns (numbers with context)
@@ -105,12 +106,28 @@ function extractSkills(lines: string[]): Skill[] {
   const seen = new Set<string>();
 
   for (const line of lines) {
+    // Handle lines with category prefix like "Languages: JavaScript, Python, ..."
+    // or "Research: User Interviews, Surveys, ..."
+    let processLine = line;
+    const categoryMatch = line.match(/^([A-Za-z\s&-]+):\s*(.+)$/);
+    if (categoryMatch) {
+      // The category prefix itself might be a skill category
+      processLine = categoryMatch[2];
+    }
+
     // Split by common delimiters
-    const items = line.split(/[,;|•·●○◦▪▸►]/);
+    const items = processLine.split(/[,;|•·●○◦▪▸►]/);
 
     for (const item of items) {
-      const name = item.trim().replace(/^\s*[-–—]\s*/, '');
+      let name = item.trim().replace(/^\s*[-–—]\s*/, '');
+      // Remove parenthetical notes like "(basic)" or "(rg -A)"
+      name = name.replace(/\s*\([^)]*\)\s*/g, '').trim();
+
       if (name && name.length > 1 && name.length < 50 && !seen.has(name.toLowerCase())) {
+        // Skip items that look like section headers or labels
+        if (/^(languages?|tools?|frameworks?|soft\s*skills?|technical)$/i.test(name)) {
+          continue;
+        }
         seen.add(name.toLowerCase());
         skills.push({
           name,
@@ -161,7 +178,7 @@ function extractExperiences(lines: string[]): Experience[] {
       bullets = [];
     } else if (isBulletPoint(line)) {
       bullets.push(parseBullet(line));
-    } else if (current && line.includes('|') || line.match(/\d{4}/)) {
+    } else if (current && (line.includes('|') || line.match(/\d{4}/))) {
       // Might be a date line
       const dateMatch = line.match(/\d{4}\s*[-–]\s*(\d{4}|present|current)/i);
       if (dateMatch) {
@@ -187,7 +204,7 @@ function extractExperiences(lines: string[]): Experience[] {
  */
 function isJobHeader(line: string): boolean {
   // Contains job-title-like patterns
-  const titlePatterns = /(engineer|developer|manager|analyst|designer|lead|director|specialist)/i;
+  const titlePatterns = /(engineer|developer|manager|analyst|designer|lead|director|specialist|assistant|intern|coordinator|associate|executive|president|consultant|researcher|teacher|educator)/i;
   return titlePatterns.test(line) && !isBulletPoint(line);
 }
 

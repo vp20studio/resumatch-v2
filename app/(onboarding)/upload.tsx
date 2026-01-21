@@ -1,47 +1,134 @@
 import { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, ScrollView, TextInput } from 'react-native';
+import { View, StyleSheet, SafeAreaView, ScrollView, TextInput, Alert } from 'react-native';
 import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 import { Text, Button, Card, StepIndicator } from '../../src/components/ui';
 import { colors, spacing, borderRadius, textStyles } from '../../src/theme';
 import { useResumeStore } from '../../src/stores';
+import { extractTextFromPDF, isValidPDF } from '../../src/services/pdfService';
 
 type UploadMethod = 'file' | 'paste' | null;
+type ProcessingStatus = 'idle' | 'picking' | 'processing' | 'error';
 
 export default function UploadScreen() {
   const [method, setMethod] = useState<UploadMethod>(null);
   const [pastedText, setPastedText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<ProcessingStatus>('idle');
+  const [processingMessage, setProcessingMessage] = useState('');
 
   const setRawText = useResumeStore((state) => state.setRawText);
   const setUploadSource = useResumeStore((state) => state.setUploadSource);
 
   const handleFilePick = async () => {
     try {
-      setIsLoading(true);
+      setStatus('picking');
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'text/plain', 'application/msword'],
         copyToCacheDirectory: true,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        const file = result.assets[0];
-        // For now, we'll handle text files. PDF parsing would require additional library
-        if (file.mimeType === 'text/plain') {
-          const content = await FileSystem.readAsStringAsync(file.uri);
-          setRawText(content);
-          setUploadSource('file');
-          router.push('/(onboarding)/complete');
-        } else {
-          // For PDFs, we'd need a PDF parser - for now, prompt paste
-          setMethod('paste');
-        }
+      if (result.canceled) {
+        setStatus('idle');
+        return;
       }
+
+      if (!result.assets[0]) {
+        setStatus('idle');
+        return;
+      }
+
+      const file = result.assets[0];
+
+      // Handle text files directly
+      if (file.mimeType === 'text/plain') {
+        const content = await FileSystem.readAsStringAsync(file.uri);
+        if (content.trim().length < 50) {
+          Alert.alert('Invalid File', 'The file appears to be empty or too short.');
+          setStatus('idle');
+          return;
+        }
+        setRawText(content);
+        setUploadSource('file');
+        router.push('/(onboarding)/goals');
+        return;
+      }
+
+      // Handle PDF files
+      if (file.mimeType === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf')) {
+        setStatus('processing');
+        setProcessingMessage('Reading PDF file...');
+
+        try {
+          // Read file as base64
+          const base64Content = await FileSystem.readAsStringAsync(file.uri, {
+            encoding: 'base64',
+          });
+
+          // Validate it's a real PDF
+          if (!isValidPDF(base64Content)) {
+            Alert.alert('Invalid PDF', 'The file does not appear to be a valid PDF document.');
+            setStatus('idle');
+            return;
+          }
+
+          setProcessingMessage('Extracting text from PDF...');
+
+          // Extract text using OpenAI
+          const extractedText = await extractTextFromPDF(base64Content);
+
+          if (extractedText.trim().length < 50) {
+            throw new Error('Could not extract sufficient text from the PDF.');
+          }
+
+          setRawText(extractedText);
+          setUploadSource('file');
+          router.push('/(onboarding)/goals');
+        } catch (error) {
+          console.error('PDF processing error:', error);
+          setStatus('error');
+
+          // Offer to paste text instead
+          Alert.alert(
+            'PDF Processing Failed',
+            'We couldn\'t extract text from your PDF. Would you like to paste your resume text instead?',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => setStatus('idle') },
+              { text: 'Paste Text', onPress: () => {
+                setStatus('idle');
+                setMethod('paste');
+              }},
+            ]
+          );
+          return;
+        }
+        return;
+      }
+
+      // Handle Word docs - prompt to paste for now
+      if (file.mimeType === 'application/msword' ||
+          file.name?.toLowerCase().endsWith('.doc') ||
+          file.name?.toLowerCase().endsWith('.docx')) {
+        Alert.alert(
+          'Word Documents',
+          'Word document support is coming soon. Please paste your resume text instead.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Paste Text', onPress: () => setMethod('paste') },
+          ]
+        );
+        setStatus('idle');
+        return;
+      }
+
+      // Unknown format
+      Alert.alert('Unsupported Format', 'Please upload a PDF or TXT file, or paste your resume text.');
+      setStatus('idle');
     } catch (error) {
       console.error('File pick error:', error);
-    } finally {
-      setIsLoading(false);
+      Alert.alert('Error', 'Failed to read the file. Please try again.');
+      setStatus('idle');
     }
   };
 
@@ -49,17 +136,30 @@ export default function UploadScreen() {
     if (pastedText.trim().length > 50) {
       setRawText(pastedText.trim());
       setUploadSource('paste');
-      router.push('/(onboarding)/complete');
+      router.push('/(onboarding)/goals');
     }
   };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (text) {
+        setPastedText(text);
+      }
+    } catch (error) {
+      console.error('Failed to paste from clipboard:', error);
+    }
+  };
+
+  const isLoading = status === 'picking' || status === 'processing';
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <StepIndicator
           currentStep={1}
-          totalSteps={2}
-          labels={['Upload Resume', 'Complete']}
+          totalSteps={3}
+          labels={['Resume', 'Goals', 'Complete']}
         />
 
         <View style={styles.header}>
@@ -71,18 +171,35 @@ export default function UploadScreen() {
           </Text>
         </View>
 
-        {!method && (
+        {/* Processing State */}
+        {status === 'processing' && (
+          <Card variant="filled" padding={6}>
+            <View style={styles.processingContent}>
+              <Text variant="h2" align="center">Processing PDF</Text>
+              <Text variant="body" color="secondary" align="center">
+                {processingMessage}
+              </Text>
+              <Text variant="caption" color="tertiary" align="center">
+                This may take a few seconds...
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* Options - only show when not processing */}
+        {!method && status !== 'processing' && (
           <View style={styles.options}>
             <Card variant="outlined" padding={6}>
               <View style={styles.optionContent}>
-                <Text variant="h2">Upload File</Text>
+                <Text variant="h2">Upload PDF</Text>
                 <Text variant="bodySmall" color="secondary">
-                  PDF, DOC, or TXT format
+                  PDF or TXT format
                 </Text>
                 <Button
                   variant="primary"
                   onPress={handleFilePick}
                   loading={isLoading}
+                  disabled={isLoading}
                   style={styles.optionButton}
                 >
                   Choose File
@@ -103,6 +220,7 @@ export default function UploadScreen() {
                 <Button
                   variant="secondary"
                   onPress={() => setMethod('paste')}
+                  disabled={isLoading}
                   style={styles.optionButton}
                 >
                   Paste Resume
@@ -114,6 +232,13 @@ export default function UploadScreen() {
 
         {method === 'paste' && (
           <View style={styles.pasteSection}>
+            <Button
+              variant="secondary"
+              onPress={handlePasteFromClipboard}
+              fullWidth
+            >
+              Paste from Clipboard
+            </Button>
             <TextInput
               style={styles.textArea}
               multiline
@@ -169,6 +294,11 @@ const styles = StyleSheet.create({
   },
   optionButton: {
     marginTop: spacing[3],
+  },
+  processingContent: {
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingVertical: spacing[4],
   },
   pasteSection: {
     gap: spacing[4],

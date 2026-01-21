@@ -32,9 +32,9 @@ export default function CompleteScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <StepIndicator
-          currentStep={2}
-          totalSteps={2}
-          labels={['Upload Resume', 'Complete']}
+          currentStep={3}
+          totalSteps={3}
+          labels={['Resume', 'Goals', 'Complete']}
         />
 
         <View style={styles.header}>

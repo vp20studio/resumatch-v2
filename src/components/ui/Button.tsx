@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { colors, spacing, borderRadius, shadows, textStyles } from '../../theme';
 import { Text } from './Text';
 
@@ -92,11 +93,18 @@ export function Button({
   rightIcon,
   children,
   style,
+  onPress,
   ...props
 }: ButtonProps) {
   const variantStyle = variantStyles[variant];
   const sizeStyle = sizeStyles[size];
   const isDisabled = disabled || loading;
+
+  const handlePress = (event: any) => {
+    // Trigger haptic feedback on press
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.(event);
+  };
 
   return (
     <TouchableOpacity
@@ -110,6 +118,7 @@ export function Button({
       ]}
       disabled={isDisabled}
       activeOpacity={0.8}
+      onPress={handlePress}
       {...props}
     >
       {loading ? (

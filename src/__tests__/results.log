@@ -1,0 +1,272 @@
+
+================================================================================
+RESUMATCH ALGORITHM TEST SUITE
+Started: 2026-01-21T09:13:20.553Z
+================================================================================
+
+
+Test Configuration:
+- Total Resumes: 5
+- Total Job Descriptions: 5
+- Total Test Combinations: 25
+
+Thresholds:
+- Match Score (matching pairs): 50-95%
+- Match Score (mismatched pairs): 15-50%
+- AI Detection Max: 40%
+- Cover Letter Words: 150-350
+- Min Skills: 5
+- Min Experiences: 2
+- Min Requirements: 5
+
+================================================================================
+RUNNING TESTS...
+================================================================================
+
+[INFO] Skipping AI detection for faster testing
+[INFO] Running in offline mode (no API calls)
+
+
+================================================================================
+INDIVIDUAL TEST RESULTS
+================================================================================
+
+[PASS] Software Engineer (3 years) × Senior React Developer
+  Match Score: 64% (expected match)
+  Skills: 21, Experiences: 2
+  Requirements: 11, Keywords: 10
+  Cover Letter: 206 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 43ms
+
+[PASS] Software Engineer (3 years) × Growth Marketing Lead
+  Match Score: 21% (expected mismatch)
+  Skills: 21, Experiences: 2
+  Requirements: 11, Keywords: 10
+  Cover Letter: 209 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 43ms
+
+[PASS] Software Engineer (3 years) × Junior Software Engineer
+  Match Score: 95% (expected match)
+  Skills: 21, Experiences: 2
+  Requirements: 9, Keywords: 7
+  Cover Letter: 205 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 26ms
+
+[PASS] Software Engineer (3 years) × UX Designer
+  Match Score: 35% (expected mismatch)
+  Skills: 21, Experiences: 2
+  Requirements: 10, Keywords: 9
+  Cover Letter: 206 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 30ms
+
+[PASS] Software Engineer (3 years) × VP of Sales
+  Match Score: 21% (expected mismatch)
+  Skills: 21, Experiences: 2
+  Requirements: 7, Keywords: 9
+  Cover Letter: 214 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 28ms
+
+[PASS] Marketing Manager (5 years) × Senior React Developer
+  Match Score: 45% (expected mismatch)
+  Skills: 18, Experiences: 3
+  Requirements: 11, Keywords: 10
+  Cover Letter: 221 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 32ms
+
+[PASS] Marketing Manager (5 years) × Growth Marketing Lead
+  Match Score: 95% (expected match)
+  Skills: 18, Experiences: 3
+  Requirements: 11, Keywords: 10
+  Cover Letter: 200 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 27ms
+
+[PASS] Marketing Manager (5 years) × Junior Software Engineer
+  Match Score: 45% (expected mismatch)
+  Skills: 18, Experiences: 3
+  Requirements: 9, Keywords: 7
+  Cover Letter: 213 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 22ms
+
+[PASS] Marketing Manager (5 years) × UX Designer
+  Match Score: 45% (expected mismatch)
+  Skills: 18, Experiences: 3
+  Requirements: 10, Keywords: 9
+  Cover Letter: 205 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 24ms
+
+[PASS] Marketing Manager (5 years) × VP of Sales
+  Match Score: 21% (expected mismatch)
+  Skills: 18, Experiences: 3
+  Requirements: 7, Keywords: 9
+  Cover Letter: 212 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 15ms
+
+[PASS] Recent Graduate (CS degree) × Senior React Developer
+  Match Score: 61% (expected match)
+  Skills: 16, Experiences: 2
+  Requirements: 11, Keywords: 10
+  Cover Letter: 203 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 21ms
+
+[PASS] Recent Graduate (CS degree) × Growth Marketing Lead
+  Match Score: 23% (expected mismatch)
+  Skills: 16, Experiences: 2
+  Requirements: 11, Keywords: 10
+  Cover Letter: 240 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 22ms
+
+[PASS] Recent Graduate (CS degree) × Junior Software Engineer
+  Match Score: 94% (expected match)
+  Skills: 16, Experiences: 2
+  Requirements: 9, Keywords: 7
+  Cover Letter: 205 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 16ms
+
+[PASS] Recent Graduate (CS degree) × UX Designer
+  Match Score: 35% (expected mismatch)
+  Skills: 16, Experiences: 2
+  Requirements: 10, Keywords: 9
+  Cover Letter: 237 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 20ms
+
+[PASS] Recent Graduate (CS degree) × VP of Sales
+  Match Score: 21% (expected mismatch)
+  Skills: 16, Experiences: 2
+  Requirements: 7, Keywords: 9
+  Cover Letter: 218 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 15ms
+
+[PASS] Career Changer (Teacher to UX) × Senior React Developer
+  Match Score: 45% (expected mismatch)
+  Skills: 19, Experiences: 3
+  Requirements: 11, Keywords: 10
+  Cover Letter: 225 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 29ms
+
+[PASS] Career Changer (Teacher to UX) × Growth Marketing Lead
+  Match Score: 23% (expected mismatch)
+  Skills: 19, Experiences: 3
+  Requirements: 11, Keywords: 10
+  Cover Letter: 222 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 27ms
+
+[PASS] Career Changer (Teacher to UX) × Junior Software Engineer
+  Match Score: 45% (expected mismatch)
+  Skills: 19, Experiences: 3
+  Requirements: 9, Keywords: 7
+  Cover Letter: 225 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 22ms
+
+[PASS] Career Changer (Teacher to UX) × UX Designer
+  Match Score: 87% (expected match)
+  Skills: 19, Experiences: 3
+  Requirements: 10, Keywords: 9
+  Cover Letter: 200 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 24ms
+
+[PASS] Career Changer (Teacher to UX) × VP of Sales
+  Match Score: 21% (expected mismatch)
+  Skills: 19, Experiences: 3
+  Requirements: 7, Keywords: 9
+  Cover Letter: 214 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 17ms
+
+[PASS] VP of Sales (15 years) × Senior React Developer
+  Match Score: 45% (expected mismatch)
+  Skills: 17, Experiences: 4
+  Requirements: 11, Keywords: 10
+  Cover Letter: 220 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 26ms
+
+[PASS] VP of Sales (15 years) × Growth Marketing Lead
+  Match Score: 23% (expected mismatch)
+  Skills: 17, Experiences: 4
+  Requirements: 11, Keywords: 10
+  Cover Letter: 207 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 25ms
+
+[PASS] VP of Sales (15 years) × Junior Software Engineer
+  Match Score: 45% (expected mismatch)
+  Skills: 17, Experiences: 4
+  Requirements: 9, Keywords: 7
+  Cover Letter: 228 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 21ms
+
+[PASS] VP of Sales (15 years) × UX Designer
+  Match Score: 37% (expected mismatch)
+  Skills: 17, Experiences: 4
+  Requirements: 10, Keywords: 9
+  Cover Letter: 222 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 23ms
+
+[PASS] VP of Sales (15 years) × VP of Sales
+  Match Score: 94% (expected match)
+  Skills: 17, Experiences: 4
+  Requirements: 7, Keywords: 9
+  Cover Letter: 217 words, AI Score: 0%
+  Mentions Company: true, Title: true
+  Time: 15ms
+
+================================================================================
+TEST SUMMARY
+================================================================================
+Total Tests: 25
+Passed: 25
+Failed: 0
+Pass Rate: 100%
+
+FAILURE BREAKDOWN:
+- Match Score Failures: 0
+- AI Detection Failures: 0
+- Parsing Failures: 0
+- Cover Letter Failures: 0
+- Hallucination Warnings: 0
+
+AVERAGES:
+- Match Score: 47%
+- AI Detection Score: 0%
+- Processing Time: 25ms
+
+BY PAIR TYPE:
+- Match Pairs: 7/7 passed
+- Mismatch Pairs: 18/18 passed
+================================================================================
+
+================================================================================
+FAILURE ANALYSIS
+================================================================================
+
+No failures to analyze!
+
+================================================================================
+TEST RUN COMPLETE
+================================================================================
+Finished: 2026-01-21T09:13:21.171Z
+Duration: 0.6 seconds
+Results saved to: /Users/victorparaschiv/Desktop/GitHub/resumatch-v2/src/__tests__/results.log
+
+ SUCCESS: 100% pass rate meets 90% target!

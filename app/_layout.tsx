@@ -8,10 +8,10 @@ export default function RootLayout() {
   const setLoading = useAuthStore((state) => state.setLoading);
 
   useEffect(() => {
-    // Simulate auth check
+    // Simple initialization - AI client auto-initializes on first use
     const timer = setTimeout(() => {
       setLoading(false);
-    }, 500);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [setLoading]);
